@@ -49,7 +49,7 @@ def render(collection: str, system) -> None:
         st.caption(f"Current grade: {current}")
     c = st.columns(3)
     for g, label in [(0, "0 · not relevant"), (1, "1 · partly relevant"), (2, "2 · highly relevant")]:
-        if c[g].button(label, use_container_width=True, key=f"g{g}_{qid}_{pid}"):
+        if c[g].button(label, width='stretch', key=f"g{g}_{qid}_{pid}"):
             write_qrel(collection, qid, pid, g, annotator.strip().lower().replace(" ", "_"))
             st.rerun()
     st.caption("Guidelines: benchmark/judging_guidelines.md")

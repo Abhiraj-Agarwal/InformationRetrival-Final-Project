@@ -26,7 +26,7 @@ def render(resp, system) -> None:
             p = system.store[r.passage_id]
             rows.append({"rank": r.rank, "cosine": round(r.score, 4), "title": p.title[:70], "page": p.page,
                          "also in lexical top 10": r.passage_id in lex_ids})
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
         if lex:
             st.caption(f"Agreement with the lexical top 10: {len(lex_ids & {r.passage_id for r in lists['dense'][:10]})}/10")
     if "expansion" in lists:
@@ -34,7 +34,7 @@ def render(resp, system) -> None:
         stt = resp.extras["stats"]["expansion"]
         added = stt.get("added_terms", [])
         if added:
-            st.dataframe(pd.DataFrame(added), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(added), hide_index=True, width='stretch')
             st.caption(f"Added with weight {system.cfg['expansion']['weight']} and re-ran BM25. "
                        f"Feedback passages: {', '.join(stt.get('feedback', []))}")
         else:

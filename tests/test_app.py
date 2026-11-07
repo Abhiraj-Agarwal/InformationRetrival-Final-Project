@@ -19,3 +19,15 @@ def test_app_runs_example_queries():
         at.text_input[0].set_value(q).run()
         assert not at.exception, q
         assert any("results" in m.value for m in at.markdown), q
+
+
+def test_analytics_tab_renders_for_every_saved_result():
+    from streamlit.testing.v1 import AppTest
+
+    for coll in ["cs", "scifact", "nfcorpus"]:
+        if not (ROOT / "indexes" / coll / "inverted.pkl").exists():
+            continue
+        at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=180)
+        at.run()
+        at.sidebar.selectbox[0].set_value(coll).run()
+        assert not at.exception, coll

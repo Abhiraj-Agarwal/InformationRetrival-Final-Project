@@ -12,7 +12,7 @@ LEXICAL = ("bm25", "bm25_champion", "bm25_ie", "tfidf", "expansion", "boolean")
 def term_table(result) -> None:
     rows = term_rows(result)
     if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
 
 
 def render(resp, system) -> None:
@@ -23,7 +23,7 @@ def render(resp, system) -> None:
     st.write("Normalised terms:", ", ".join(f"`{t}`" for t in resp.query.terms) or "—")
     idf = [{"term": t, "df": system.index.df(t), "idf": round(system.index.idf(t), 3),
             "bm25 idf": round(system.scorer.idf(t), 3)} for t in dict.fromkeys(resp.query.terms)]
-    st.dataframe(pd.DataFrame(idf), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(idf), hide_index=True, width='stretch')
     ran = [m for m in resp.extras["methods_run"] if m in LEXICAL]
     if not ran:
         st.info("No lexical method ran for this query.")
@@ -43,4 +43,4 @@ def render(resp, system) -> None:
             p = system.store[r.passage_id]
             rows.append({"rank": r.rank, "score": round(r.score, 3), "title": p.title[:70], "page": p.page,
                          "terms": ", ".join(f"{x['term']}:{x['score']:.2f}" for x in term_rows(r))})
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')

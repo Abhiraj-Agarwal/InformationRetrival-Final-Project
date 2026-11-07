@@ -22,14 +22,14 @@ def render(resp, system) -> None:
                      "cost": round(s.cost, 2), "budget left": round(s.budget_left, 2),
                      "confidence": None if s.confidence is None else round(s.confidence, 3),
                      "ms": round(s.latency_ms, 2), "note": s.note})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
     conf_steps = [s for s in resp.trace if s.action == "confidence"]
     if conf_steps:
         st.subheader("Confidence signals per step")
         sig = pd.DataFrame([{k: round(v, 3) for k, v in s.signals.items() if isinstance(v, (int, float))}
                             for s in conf_steps])
         sig.insert(0, "confidence", [round(s.confidence, 3) for s in conf_steps])
-        st.dataframe(sig, hide_index=True, use_container_width=True)
+        st.dataframe(sig, hide_index=True, width='stretch')
         st.caption("confidence = sigmoid(bias + Σ wᵢ·signalᵢ); weights in config/settings.yaml → controller.confidence_weights")
     route = resp.trace[0] if resp.trace and resp.trace[0].action == "route" else None
     if route:

@@ -19,18 +19,21 @@ def render(collection: str) -> None:
     d = json.loads(Path(f).read_text())
     st.caption(f"Saved {d['timestamp_utc']} · split {d['split']} · {d['n_queries']} queries · "
                f"{d['hardware'].get('cpu', '')} ({d['hardware'].get('cpu_count')} CPUs)")
+    if not any(r["aggregate"] for r in d["systems"].values()):
+        st.warning("This collection has no relevance labels yet: costs and latency only. "
+                   "Judge the pool in the ✅ Judge tab, then run `make eval`.")
     rows = []
     for sid, r in d["systems"].items():
         a = r["aggregate"]
         rows.append({"ID": sid, "system": r["label"], **{k: round(a.get(k, 0), 3) for k in ("P@5", "Recall@10", "MAP", "NDCG@10")},
                      "mean cost": round(r["mean_cost"], 2), "escalated": f"{r['escalation_rate']:.0%}",
                      "median ms": round(r["latency_median_ms"], 2), "p95 ms": round(r["latency_p95_ms"], 2)})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
     if d.get("ablations"):
         st.subheader("Ablations (from S8)")
-        st.dataframe(pd.DataFrame([{"ablation": k, "NDCG@10": round(v["aggregate"]["NDCG@10"], 3),
+        st.dataframe(pd.DataFrame([{"ablation": k, "NDCG@10": round(v["aggregate"].get("NDCG@10", float("nan")), 3),
                                     "mean cost": round(v["mean_cost"], 2)} for k, v in d["ablations"].items()]),
                      hide_index=True)
     figs = sorted((RESULTS / "figures").glob(f"{collection}_{d['split']}_*.png"))
     for p in figs:
-        st.image(str(p), use_container_width=True)
+        st.image(str(p), width='stretch')

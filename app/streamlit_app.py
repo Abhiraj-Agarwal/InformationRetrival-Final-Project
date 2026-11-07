@@ -42,7 +42,10 @@ def get_system(collection: str):
     from contextweave.system import load_system
 
     cfg = load_config(overrides={"collection": collection})
-    return load_system(cfg, collection=collection)
+    system = load_system(cfg, collection=collection)
+    if system.embedder is not None:  # load the model now so the first search is not slow
+        system.embedder.encode(["warm-up"])
+    return system
 
 
 def tuned_defaults(collection: str, cfg) -> dict:

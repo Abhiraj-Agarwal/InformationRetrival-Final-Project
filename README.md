@@ -25,7 +25,7 @@ make setup                 # CPU PyTorch + requirements (Python 3.10+)
 make data                  # download open PDFs + BEIR SciFact/NFCorpus, extract, clean, chunk
 make index                 # inverted index, champion lists, embeddings, FAISS (all collections)
 make calibrate-costs       # measure method costs -> config/settings.yaml
-make test                  # pytest (43 tests)
+make test                  # pytest (44 tests)
 make eval-quick            # tune on validation queries + main systems on validation
 make eval                  # all systems on test + ablations + sweeps + plots + tables
 make app                   # Streamlit UI at http://localhost:8501
@@ -66,6 +66,20 @@ python main.py evaluate --collection scifact --split val --systems S2,S5,S8
 
 Adding a retriever: implement `name`, `cost`, `search(query, k, candidate_ids)` and `registry.register(...)` it in
 `system.py` (or your own module). The controller, UI and experiments pick it up by name.
+
+## Results (test splits, from `experiments/results/tables_*_test.md`)
+
+| | SciFact NDCG@10 | SciFact cost | NFCorpus NDCG@10 | NFCorpus cost |
+|---|---|---|---|---|
+| S2 BM25 (from scratch) | 0.689 | 1.0 | 0.323 | 1.0 |
+| S4 Dense (MiniLM + FAISS) | 0.648 | 24.9 | 0.318 | 59.5 |
+| S5 Fixed hybrid | 0.731 | 25.9 | 0.355 | 60.5 |
+| **S7 Full controller** | 0.715 | 16.6 (−36%) | 0.340 | 26.9 (−55%) |
+| **N4 + QPP-percentile fusion** | 0.722 | 18.6 (−28%) | 0.339 | 26.9 (−55%) |
+
+Cost unit = one full BM25 query on this machine (2-CPU Xeon). Learn-then-Test risk control held on the test split at
+every certified risk level (8/8). Published reference (BEIR paper): BM25 0.665 / 0.325. The cs corpus awaits team
+labels; its cost profile is 11.4 units per query for the controller vs 24.3 for the hybrid.
 
 ## Systems evaluated
 
