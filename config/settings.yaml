@@ -20,6 +20,7 @@ ingestion:
   min_page_chars: 300          # pages with less text are skipped
   header_footer_repeat: 0.4    # a line repeated on >= this share of pages is a header/footer
   min_doc_chars: 1500          # documents with less text are rejected and logged
+  split_glued_words: true      # split PDF tokens that lost their spaces (needs wordninja)
 
 chunking: {max_tokens: 200, overlap: 40}
 text: {lowercase: true, stopwords: english, stemmer: porter}
@@ -44,15 +45,18 @@ expansion:
   candidate_terms: 30          # high TF-IDF terms considered before the embedding filter
   min_similarity: 0.25         # term must be at least this close to the query (cosine)
 
-fusion: {method: weighted, normalisation: minmax}
+fusion: {method: weighted, normalisation: minmax, hybrid_alpha: 0.5}   # hybrid_alpha = fixed alpha of S5
 
 retrieval:
   k: 10                        # results returned
   depth: 100                   # list depth each method retrieves (for fusion / metrics)
 
 controller:
-  tau: 0.60                    # confidence threshold, tuned on validation queries
-  budget: 3.0                  # cost units per query
+  # Defaults for the cs demo, transferred from SciFact validation tuning (S8) until the cs
+  # benchmark is labelled (spec placeholders were tau 0.60, budget 3.0, alpha 0.7/0.5/0.3).
+  # Per-collection tuned values live in experiments/results/models/<collection>/tuned.json.
+  tau: 0.65                    # confidence threshold, tuned on validation queries
+  budget: 27.0                 # cost units per query (1 unit = one full BM25 query, measured)
   ladder_lexical: [bm25_champion, bm25, dense, expansion]
   ladder_semantic: [dense, bm25, expansion]
   router:
@@ -67,11 +71,16 @@ controller:
     concentration: 0.5
     agreement: 2.0
   alpha:                       # fusion weight of the lexical part, alpha(q)
-    default: 0.5
+    default: 0.6
     exact: 0.7                 # quotes / formula tokens / short high-IDF queries
-    semantic: 0.3              # questions, long queries, many unknown terms
+    semantic: 0.5              # questions, long queries, many unknown terms
 
-costs: {bm25_champion: 0.3, bm25: 1.0, tfidf: 1.0, dense: 2.0, expansion: 1.0, boolean: 0.2}
+costs: {boolean: 0.79, tfidf: 0.967, bm25: 1.0, bm25_ie: 1.474, bm25_champion: 1.178, dense: 23.304, expansion: 13.869}
+
+costs_by_collection:   # measured by `make calibrate-costs`
+  nfcorpus: {boolean: 0.455, tfidf: 1.136, bm25: 1.0, bm25_ie: 1.059, bm25_champion: 1.165, dense: 59.457, expansion: 49.944}
+  scifact: {boolean: 0.379, tfidf: 1.048, bm25: 1.0, bm25_ie: 1.375, bm25_champion: 1.204, dense: 24.912, expansion: 14.401}
+  cs: {boolean: 0.79, tfidf: 0.967, bm25: 1.0, bm25_ie: 1.474, bm25_champion: 1.178, dense: 23.304, expansion: 13.869}
 
 # ---------------------------------------------------------------------------
 # Novel extensions (ContextWeave+). All OFF by default so the baseline
@@ -89,6 +98,7 @@ novelty:
     wig_weight: 1.0
   voc:
     lambda: 0.01               # stop when best expected gain per cost unit falls below this
+    lambda_grid: [0.0, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01]
     confidence_bins: [0.0, 0.3, 0.5, 0.7, 1.01]
     prior_strength: 3.0        # shrinkage of per-bin gain estimates toward the action mean
     model_file: voc_gain_model.json

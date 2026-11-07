@@ -95,11 +95,16 @@ def build_corpus(cfg: Config, sources_csv: Path | None = None, raw_dir: Path | N
         base = titles.get(src["url"], src["title"]) if "arxiv.org" in src["url"] else src["title"]
         try:
             raw_docs = split_into_docs(path, base, src.get("split_mode", "none"), src.get("exclude") or None)
+            if src.get("titles"):  # chapter titles written in sources.csv override detected ones
+                names = [t.strip() for t in src["titles"].split("|")]
+                for rd, name in zip(raw_docs, names):
+                    rd.title = f"{base} — {name}"
         except Exception as exc:
             rejected.append({"source": path.name, "reason": f"extraction error: {exc}"})
             continue
         for rd in raw_docs:
-            pages, skipped = clean_document(rd.pages, ing["min_page_chars"], ing["header_footer_repeat"])
+            pages, skipped = clean_document(rd.pages, ing["min_page_chars"], ing["header_footer_repeat"],
+                                            bool(ing.get("split_glued_words", False)))
             n_chars = sum(len(t) for _, t in pages)
             if n_chars < ing["min_doc_chars"]:
                 rejected.append({"source": f"{path.name} :: {rd.title}", "reason": f"too little text ({n_chars} chars)"})

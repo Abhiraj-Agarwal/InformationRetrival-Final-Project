@@ -9,6 +9,23 @@ _LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl",
               " ": " ", "­": ""}
 _DIGITS = re.compile(r"\d+")
 _REF_HEAD = re.compile(r"^\s*(references|bibliography)\s*$", re.I)
+_GLUED = re.compile(r"\b[A-Za-z]{15,}\b")
+
+
+def split_glued_words(text: str, min_parts: int = 3) -> str:
+    """Some PDFs lose inter-word spaces ("Manyofthosepagesarespam"). Split long
+    alphabetic tokens into words with a unigram language model (wordninja), but
+    only when the split has >= ``min_parts`` words, so real long words survive."""
+    try:
+        import wordninja
+    except ImportError:  # optional dependency
+        return text
+
+    def fix(m: re.Match) -> str:
+        parts = wordninja.split(m.group(0))
+        return " ".join(parts) if len(parts) >= min_parts else m.group(0)
+
+    return _GLUED.sub(fix, text)
 
 
 def _line_key(line: str) -> str:
@@ -36,7 +53,7 @@ def normalise_unicode(text: str) -> str:
     return unicodedata.normalize("NFKC", text)
 
 
-def clean_page(text: str, repeated: set[str]) -> str:
+def clean_page(text: str, repeated: set[str], split_glued: bool = False) -> str:
     """Remove header/footer lines, join hyphenated line breaks, collapse whitespace."""
     text = normalise_unicode(text)
     lines = [ln for ln in text.splitlines() if _line_key(ln) not in repeated]
@@ -44,6 +61,8 @@ def clean_page(text: str, repeated: set[str]) -> str:
     text = re.sub(r"(\w)-\n(?=[a-z])", r"\1", text)  # hyphenated line break: "re-\ntrieval"
     text = re.sub(r"[^\S\n]+", " ", text)
     text = re.sub(r"\s*\n\s*", " ", text)
+    if split_glued:
+        text = split_glued_words(text)
     return text.strip()
 
 
@@ -62,13 +81,13 @@ def drop_references(pages: list[tuple[int, str]]) -> list[tuple[int, str]]:
 
 
 def clean_document(pages: list[tuple[int, str]], min_page_chars: int = 300,
-                   repeat_share: float = 0.4) -> tuple[list[tuple[int, str]], int]:
+                   repeat_share: float = 0.4, split_glued: bool = False) -> tuple[list[tuple[int, str]], int]:
     """Clean all pages of one document. Returns (kept pages, number skipped)."""
     pages = drop_references(pages)
     repeated = find_repeated_lines([t for _, t in pages], repeat_share)
     kept, skipped = [], 0
     for pno, text in pages:
-        c = clean_page(text, repeated)
+        c = clean_page(text, repeated, split_glued)
         if len(c) < min_page_chars:
             skipped += 1
             continue

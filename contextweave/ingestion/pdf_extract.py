@@ -49,7 +49,8 @@ def _heading_chapters(pages: list[tuple[int, str]]) -> list[tuple[str, int]]:
             continue
         m = _HEAD_NUM.match(lines[0])
         if m and int(m.group(1)) == expected and not lines[1][:1].isdigit():
-            title = " ".join(lines[1:3]) if len(lines[1]) < 35 else lines[1]
+            join_next = len(lines[1]) < 35 and not lines[2][:1] in "\"“‘'[(" and len(lines[2]) < 35
+            title = f"{lines[1]} {lines[2]}" if join_next else lines[1]
             out.append((f"{expected} {title}", pno))
             expected += 1
     return out

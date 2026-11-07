@@ -36,6 +36,8 @@ class Query:
     filters: dict[str, Any] = field(default_factory=dict)
     # Optional: extra weighted terms (used by query expansion). term -> weight.
     term_weights: dict[str, float] = field(default_factory=dict)
+    # Optional per-query artefacts computed once and reused (e.g. the query embedding).
+    cache: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
 
 @dataclass
