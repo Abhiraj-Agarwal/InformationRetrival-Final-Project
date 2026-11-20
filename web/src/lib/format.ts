@@ -70,3 +70,24 @@ export function parseRoute(note: string): { cls: string; why: string } {
   const why = parts.filter((p) => !p.startsWith("class=") && !p.startsWith("ladder=")).join("; ");
   return { cls, why };
 }
+
+export type MethodKind = "lexical" | "semantic" | "expand" | "fused";
+
+/** Which family a method belongs to; drives its colour everywhere (lexical cobalt, semantic violet, expansion amber). */
+export function methodKind(m: string | null | undefined): MethodKind {
+  if (m === "dense") return "semantic";
+  if (m === "expansion") return "expand";
+  if (m === "fusion" || m === "fused" || m === "hybrid" || m === "auto") return "fused";
+  return "lexical";
+}
+
+/** CSS colour for a method family, for SVG fills and inline styles. */
+export const KIND_COLOR: Record<MethodKind, string> = {
+  lexical: "rgb(var(--lexical))",
+  semantic: "rgb(var(--semantic))",
+  expand: "rgb(var(--expand))",
+  fused: "rgb(var(--ink))",
+};
+
+export const signed = (x: number | null | undefined, digits = 3) =>
+  x === null || x === undefined || Number.isNaN(x) ? "—" : `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(digits)}`;
