@@ -29,7 +29,7 @@ describe("Evaluation page", () => {
     const table = await screen.findByRole("region", { name: "All systems" });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(r.systems.length);
-    expect(rows.find((x) => x.textContent?.includes("Full controller"))).toHaveClass("bg-sage-bg");
+    expect(rows.find((x) => x.textContent?.includes("Full controller"))).toHaveAttribute("data-highlight", "true");
   });
 
   it("reports significance, ablations and whether risk control held", async () => {
