@@ -45,12 +45,14 @@ python main.py evaluate --collection scifact --split val --systems S2,S5,S8
 ## Web UI
 
 The UI is a React + TypeScript + Tailwind single-page app (`web/`) served by a FastAPI backend (`api/`).
-Its look follows the team's Clothing Search Engine UI: warm paper surfaces, sage accents, Fraunces + Plus Jakarta Sans.
+It is designed as a retrieval lab instrument: colour encodes meaning (lexical methods cobalt, dense / semantic violet,
+expansion amber, a step that reached τ teal, one that fell short crimson), Instrument Sans for the interface, Newsreader
+for retrieved passages, and light and dark themes (follows the system, toggle in the top bar).
 
 | Page | What it shows |
 |---|---|
-| **Search** | search box + examples; method picker (Adaptive, BM25, Dense, Hybrid, more); controller settings (budget, τ, expansion, ContextWeave+ extensions, domain filter); cost / confidence / latency tiles; the **decision path** (route → retrieve → confidence → escalate or stop); results with highlighted snippets, "why this result" and the full passage; what each method retrieved, query expansion and the confidence signals |
-| **Evaluation** | saved results only (never recomputed): headline numbers, quality-vs-cost chart, every system, significance vs the fixed hybrid, ablations, Learn-then-Test risk control |
+| **Search** | search box + examples and a price list of every method; results on the left, a sticky inspector on the right with the **budget ledger** (each method's cost filling the budget, confidence after each step against τ); method picker (Adaptive, BM25, Dense, Hybrid, more); controller settings (budget, τ, expansion, ContextWeave+ extensions, domain filter); cost / confidence / latency tiles; the **decision path** (route → retrieve → confidence → escalate or stop); results with highlighted snippets, "why this result" and the full passage; what each method retrieved, query expansion and the confidence signals |
+| **Evaluation** | saved results only (never recomputed): a one-line verdict and headline numbers, quality-vs-cost chart, NDCG@10 by query type, every system, significance vs the fixed hybrid with confidence intervals, ablations, Learn-then-Test risk control |
 | **Judge** | grading the cs pool 0/1/2 with keyboard shortcuts, progress, per-annotator logs for Cohen's κ |
 
 ```bash

@@ -1,13 +1,10 @@
+import clsx from "clsx";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { EvaluationResult, SystemRow } from "../lib/api";
 import { fmt } from "../lib/format";
 
-// Validated with the dataviz palette checker against the #fffefa surface (lightness, chroma, CVD, contrast):
-// adaptive systems in sage, fixed baselines in the de-emphasis gray, the tau/budget sweep as a faint sage wash.
-const ADAPTIVE = "#3f7a34";
-const FIXED = "#8f9384";
-const SURFACE = "#fffefa";
-const GRID = "#ecebe3";
+// Colours come from the theme (index.css), so the chart follows light and dark mode: adaptive systems in the
+// accent, fixed baselines in the de-emphasis gray, the tau/budget sweep as a faint accent wash.
 const LABELLED = new Set(["S2", "S4", "S5", "S7"]);
 export const isAdaptive = (id: string) => /^(S6|S7|S8|N\d)$/.test(id);
 
@@ -124,61 +121,67 @@ export function QualityCostChart({ result }: { result: EvaluationResult }) {
   const labels = placeLabels([...pts, ...sweepPts], { x0: m.left, x1: width - m.right, y0: m.top, y1: H - m.bottom });
 
   return (
-    <figure className="card mt-4 animate-fade-up p-5" aria-label="Quality versus cost">
+    <figure className="panel mt-4 p-5" aria-label="Quality versus cost">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="font-semibold">Quality vs cost per query</span>
-        <span className="flex flex-wrap gap-4 text-[0.76rem] text-ink-soft" aria-label="Legend">
+        <span>
+          <span className="font-semibold">Quality against cost per query</span>
+          <span className="block text-[0.82rem] text-ink-soft">Up and to the left is better: more NDCG@10 for less effort.</span>
+        </span>
+        <span className="flex flex-wrap gap-4 text-[0.8rem] text-ink-soft" aria-label="Legend">
           <span className="inline-flex items-center gap-1.5">
-            <svg width="10" height="10" aria-hidden><circle cx="5" cy="5" r="4.5" fill={ADAPTIVE} /></svg>Adaptive controller
+            <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+            Adaptive controller
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <svg width="10" height="10" aria-hidden><circle cx="5" cy="5" r="4.5" fill={FIXED} /></svg>Fixed method
+            <span className="h-2.5 w-2.5 rounded-full bg-ink-faint" />
+            Fixed method
           </span>
           {sweepPts.length > 0 && (
             <span className="inline-flex items-center gap-1.5">
-              <svg width="10" height="10" aria-hidden><circle cx="5" cy="5" r="3" fill={ADAPTIVE} opacity="0.3" /></svg>τ / budget sweep
+              <span className="h-1.5 w-1.5 rounded-full bg-accent/40" />
+              τ and budget sweep
             </span>
           )}
         </span>
       </figcaption>
-      <div ref={ref} className="relative mt-3">
-        <svg width={width} height={H} role="img" aria-label="Scatter plot of NDCG@10 against mean cost per query" onMouseLeave={() => setHover(null)}>
+      <div ref={ref} className="relative mt-4">
+        <svg width={width} height={H} role="img" aria-label="Scatter plot of NDCG@10 against mean cost per query" onMouseLeave={() => setHover(null)} className="overflow-visible">
           {yticks.map((t) => (
             <g key={`y${t}`}>
-              <line x1={m.left} x2={width - m.right} y1={sy(t)} y2={sy(t)} stroke={GRID} strokeWidth={1} />
-              <text x={m.left - 8} y={sy(t)} dy="0.32em" textAnchor="end" fontSize="11" fill="#7c8073" className="num">
+              <line x1={m.left} x2={width - m.right} y1={sy(t)} y2={sy(t)} className="stroke-line/[0.08]" strokeWidth={1} />
+              <text x={m.left - 8} y={sy(t)} dy="0.32em" textAnchor="end" fontSize="11" className="num fill-ink-faint">
                 {t.toFixed(2)}
               </text>
             </g>
           ))}
           {xticks.map((t) => (
             <g key={`x${t}`}>
-              <line x1={sx(t)} x2={sx(t)} y1={m.top} y2={H - m.bottom} stroke={GRID} strokeWidth={1} />
-              <text x={sx(t)} y={H - m.bottom + 16} textAnchor="middle" fontSize="11" fill="#7c8073">
+              <line x1={sx(t)} x2={sx(t)} y1={m.top} y2={H - m.bottom} className="stroke-line/[0.08]" strokeWidth={1} />
+              <text x={sx(t)} y={H - m.bottom + 16} textAnchor="middle" fontSize="11" className="num fill-ink-faint">
                 {t}
               </text>
             </g>
           ))}
-          <text x={m.left + iw / 2} y={H - 8} textAnchor="middle" fontSize="11.5" fill="#5e6257">
-            Mean cost per query (BM25 units, log scale) →
+          <text x={m.left + iw / 2} y={H - 8} textAnchor="middle" fontSize="11.5" className="fill-ink-soft">
+            Mean cost per query, in BM25 units (log scale)
           </text>
-          <text transform={`translate(13 ${m.top + ih / 2}) rotate(-90)`} textAnchor="middle" fontSize="11.5" fill="#5e6257">
-            NDCG@10 →
+          <text transform={`translate(13 ${m.top + ih / 2}) rotate(-90)`} textAnchor="middle" fontSize="11.5" className="fill-ink-soft">
+            NDCG@10
           </text>
 
           {sweepPts.map((p, i) => (
-            <circle key={`s${i}`} cx={p.x} cy={p.y} r={3} fill={ADAPTIVE} opacity={0.22} onMouseEnter={() => setHover(p)} />
+            <circle key={`s${i}`} cx={p.x} cy={p.y} r={3} className="fill-accent" opacity={0.22} onMouseEnter={() => setHover(p)} />
           ))}
           {pts.map((p) => (
-            <g key={p.id} onMouseEnter={() => setHover(p)} onFocus={() => setHover(p)} onBlur={() => setHover(null)} tabIndex={0} role="button" aria-label={`${p.id} ${p.label}: NDCG@10 ${fmt(p.ndcg, 3)}, cost ${fmt(p.cost)}`}>
+            <g key={p.id} onMouseEnter={() => setHover(p)} onFocus={() => setHover(p)} onBlur={() => setHover(null)} tabIndex={0} role="button" aria-label={`${p.id} ${p.label}: NDCG@10 ${fmt(p.ndcg, 3)}, cost ${fmt(p.cost)}`} className="outline-none">
               <circle cx={p.x} cy={p.y} r={14} fill="transparent" />
-              <circle cx={p.x} cy={p.y} r={5.5} fill={p.adaptive ? ADAPTIVE : FIXED} stroke={SURFACE} strokeWidth={2} />
+              <circle cx={p.x} cy={p.y} r={hover === p ? 7 : 5.5} className={clsx(p.adaptive ? "fill-accent" : "fill-ink-faint", "stroke-surface transition-[r]")} strokeWidth={2} />
             </g>
           ))}
           {labels.map((l) => (
             <g key={`l${l.id}`} pointerEvents="none">
-              {l.leader && <line x1={l.px} y1={l.py} x2={l.lx} y2={l.ly} stroke="#7c8073" strokeWidth={1} />}
-              <text x={l.tx} y={l.ty} dy="0.32em" textAnchor={l.anchor} fontSize="11.5" fontWeight={600} fill="#1e211b" paintOrder="stroke" stroke={SURFACE} strokeWidth={3}>
+              {l.leader && <line x1={l.px} y1={l.py} x2={l.lx} y2={l.ly} className="stroke-ink-faint" strokeWidth={1} />}
+              <text x={l.tx} y={l.ty} dy="0.32em" textAnchor={l.anchor} fontSize="11.5" fontWeight={600} className="fill-ink stroke-surface" paintOrder="stroke" strokeWidth={3}>
                 {l.text}
               </text>
             </g>
@@ -186,20 +189,20 @@ export function QualityCostChart({ result }: { result: EvaluationResult }) {
         </svg>
         {hover && (
           <div
-            className="pointer-events-none absolute z-10 w-max max-w-[16rem] rounded-md2 bg-ink px-3 py-2 text-[0.76rem] text-white shadow-soft"
-            style={{ left: Math.min(hover.x + 12, width - 200), top: Math.max(hover.y - 52, 0) }}
+            className="pointer-events-none absolute z-10 w-max max-w-[16rem] rounded-ctl border hairline bg-surface px-3 py-2 text-[0.8rem] shadow-lift"
+            style={{ left: Math.min(hover.x + 12, width - 200), top: Math.max(hover.y - 56, 0) }}
             role="status"
           >
-            <div className="font-semibold">{hover.id ? `${hover.id} · ${hover.label}` : hover.label}</div>
-            <div className="num opacity-80">
-              NDCG@10 {fmt(hover.ndcg, 3)} · cost {fmt(hover.cost)}
+            <div className="font-medium">{hover.id ? `${hover.id} ${hover.label}` : hover.label}</div>
+            <div className="num text-ink-soft">
+              NDCG@10 {fmt(hover.ndcg, 3)}, cost {fmt(hover.cost)}
             </div>
           </div>
         )}
       </div>
       {off.length > 0 && (
-        <p className="mt-1 text-[0.76rem] text-ink-faint">
-          Off the scale, shown in the table: {off.map((s) => `${s.id} ${s.label} (NDCG@10 ${fmt(s.metrics!["NDCG@10"], 3)})`).join(", ")}.
+        <p className="mt-2 text-[0.8rem] text-ink-faint">
+          Off the scale and listed in the table: {off.map((s) => `${s.id} ${s.label} (NDCG@10 ${fmt(s.metrics!["NDCG@10"], 3)})`).join(", ")}.
         </p>
       )}
     </figure>

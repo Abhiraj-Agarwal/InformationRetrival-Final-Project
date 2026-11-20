@@ -1,39 +1,29 @@
 import clsx from "clsx";
 import { Info, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { clamp01 } from "../lib/format";
+import { clamp01, methodKind, methodLabel, type MethodKind } from "../lib/format";
 
-export function Eyebrow({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-sage-bg px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-sage-ink">
-      <span className="h-1.5 w-1.5 rounded-full bg-sage shadow-[0_0_0_3px_rgba(70,112,63,0.18)]" />
-      {children}
-    </span>
-  );
-}
-
-/** Rounded segmented control (tab bar and small option pickers). */
+/** Segmented control: page tabs, collection switcher, method picker, split picker. */
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   label,
   size = "md",
+  className,
 }: {
   value: T;
   options: { value: T; label: ReactNode; disabled?: boolean; title?: string }[];
   onChange: (v: T) => void;
   label: string;
   size?: "sm" | "md";
+  className?: string;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className={clsx(
-        "inline-flex max-w-full flex-wrap gap-1 bg-shell shadow-inset",
-        size === "md" ? "rounded-[1.2rem] p-1" : "rounded-full p-[3px]",
-      )}
+      className={clsx("inline-flex max-w-full flex-wrap gap-0.5 rounded-ctl bg-sunken p-[3px]", className)}
     >
       {options.map((o) => {
         const on = o.value === value;
@@ -47,9 +37,9 @@ export function Segmented<T extends string>({
             title={o.title}
             onClick={() => onChange(o.value)}
             className={clsx(
-              "inline-flex items-center gap-2 font-semibold transition-all duration-300 ease-soft disabled:cursor-not-allowed disabled:opacity-40",
-              size === "md" ? "rounded-[0.95rem] px-4 py-2 text-[0.86rem]" : "rounded-full px-3 py-1 text-[0.78rem]",
-              on ? "bg-surface text-sage-ink shadow-soft" : "text-ink-soft hover:bg-white/55 hover:text-ink",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
+              size === "md" ? "px-3 py-1.5 text-[0.86rem]" : "px-2.5 py-1 text-[0.8rem]",
+              on ? "bg-surface text-ink shadow-panel" : "text-ink-soft hover:text-ink",
             )}
           >
             {o.label}
@@ -78,10 +68,10 @@ export function Chip({
       title={title}
       aria-pressed={active}
       className={clsx(
-        "rounded-full border px-3.5 py-1.5 text-[0.8rem] transition-all duration-200 ease-soft hover:-translate-y-px",
+        "rounded-ctl border px-2.5 py-1 text-left text-[0.82rem] transition-colors duration-150",
         active
-          ? "border-sage bg-sage-bg font-semibold text-sage-ink"
-          : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-sage-ink",
+          ? "border-accent/40 bg-accent-soft text-accent-ink"
+          : "border-line/[0.12] bg-surface text-ink-soft hover:border-line/25 hover:text-ink",
       )}
     >
       {children}
@@ -89,15 +79,23 @@ export function Chip({
   );
 }
 
-export function Pill({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "on" | "warn" | "info" }) {
+type Tone = "plain" | "accent" | "pass" | "fail" | "semantic" | "expand";
+const TONE: Record<Tone, string> = {
+  plain: "bg-sunken text-ink-soft",
+  accent: "bg-accent-soft text-accent-ink",
+  pass: "bg-pass-soft text-pass",
+  fail: "bg-fail-soft text-fail",
+  semantic: "bg-semantic-soft text-semantic",
+  expand: "bg-expand-soft text-expand",
+};
+
+export function Badge({ children, tone = "plain", className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.64rem] font-bold uppercase tracking-[0.1em]",
-        tone === "on" && "bg-sage-bg text-sage-ink",
-        tone === "plain" && "bg-shell text-ink-soft",
-        tone === "warn" && "bg-warn-bg text-warn-ink",
-        tone === "info" && "bg-info-bg text-info-ink",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-[6px] px-1.5 py-px text-[0.74rem] font-medium",
+        TONE[tone],
+        className,
       )}
     >
       {children}
@@ -105,24 +103,43 @@ export function Pill({ children, tone = "plain" }: { children: ReactNode; tone?:
   );
 }
 
+const KIND_DOT: Record<MethodKind, string> = {
+  lexical: "bg-lexical",
+  semantic: "bg-semantic",
+  expand: "bg-expand",
+  fused: "bg-ink",
+};
+
+/** A method name with its family colour dot. */
+export function MethodTag({ method, className }: { method: string; className?: string }) {
+  return (
+    <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
+      <span className={clsx("h-2 w-2 flex-none rounded-full", KIND_DOT[methodKind(method)])} aria-hidden />
+      {methodLabel(method)}
+    </span>
+  );
+}
+
+export const kindBg = (m: string) => KIND_DOT[methodKind(m)];
+
 /** Horizontal meter; `marker` draws a threshold tick (e.g. tau). */
 export function Meter({
   value,
   marker,
-  tone = "sage",
+  tone = "accent",
   className,
   label,
 }: {
   value: number;
   marker?: number | null;
-  tone?: "sage" | "warn" | "mute";
+  tone?: "accent" | "pass" | "fail" | "mute" | "semantic" | "lexical";
   className?: string;
   label?: string;
 }) {
   const v = clamp01(value);
   return (
     <div
-      className={clsx("relative h-[0.35rem] rounded-full bg-shell", className)}
+      className={clsx("relative h-1.5 rounded-full bg-sunken", className)}
       role="meter"
       aria-valuemin={0}
       aria-valuemax={1}
@@ -131,10 +148,13 @@ export function Meter({
     >
       <span
         className={clsx(
-          "block h-full rounded-full transition-[width] duration-500 ease-soft",
-          tone === "sage" && "bg-sage",
-          tone === "warn" && "bg-warn-ink/70",
-          tone === "mute" && "bg-mute",
+          "block h-full rounded-full transition-[width] duration-500 ease-out",
+          tone === "accent" && "bg-accent",
+          tone === "lexical" && "bg-lexical",
+          tone === "semantic" && "bg-semantic",
+          tone === "pass" && "bg-pass",
+          tone === "fail" && "bg-fail",
+          tone === "mute" && "bg-ink-faint/60",
         )}
         style={{ width: `${v * 100}%` }}
       />
@@ -149,6 +169,7 @@ export function Meter({
   );
 }
 
+/** A labelled figure. The label and value share a parent so screen readers and tests read them together. */
 export function Stat({
   label,
   value,
@@ -156,61 +177,57 @@ export function Stat({
   note,
   tone,
   children,
-  delay = 0,
+  className,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   note?: ReactNode;
-  tone?: "good" | "warn";
+  tone?: "pass" | "fail";
   children?: ReactNode;
-  delay?: number;
+  className?: string;
 }) {
   return (
-    <div className="card animate-fade-up px-[1.15rem] py-4" style={{ animationDelay: `${delay}ms` }}>
-      <div className="label-caps">{label}</div>
+    <div className={clsx("min-w-0", className)}>
+      <div className="label">{label}</div>
       <div
         className={clsx(
-          "mt-1 font-serif text-[1.7rem] font-semibold leading-tight",
-          tone === "good" && "text-sage-ink",
-          tone === "warn" && "text-warn-ink",
+          "num mt-0.5 text-[1.6rem] font-semibold leading-tight tracking-[-0.02em]",
+          tone === "pass" && "text-pass",
+          tone === "fail" && "text-fail",
         )}
       >
-        {value} {sub && <small className="font-sans text-[0.85rem] font-medium text-ink-faint">{sub}</small>}
+        {value} {sub && <span className="text-[0.82rem] font-normal tracking-normal text-ink-faint">{sub}</span>}
       </div>
-      {note && <div className="mt-0.5 text-[0.76rem] text-ink-soft">{note}</div>}
-      {children && <div className="mt-2.5">{children}</div>}
+      {note && <div className="mt-0.5 text-[0.8rem] leading-snug text-ink-soft">{note}</div>}
+      {children && <div className="mt-2">{children}</div>}
     </div>
   );
 }
 
+/** A titled section of a page. */
 export function Panel({
-  num,
   title,
-  pill,
+  aside,
   lead,
   children,
   id,
+  className,
 }: {
-  num?: number;
   title: string;
-  pill?: ReactNode;
+  aside?: ReactNode;
   lead?: ReactNode;
   children?: ReactNode;
   id?: string;
+  className?: string;
 }) {
   return (
-    <section className="mt-11 animate-fade-up" id={id} aria-label={title}>
-      <div className="flex flex-wrap items-center gap-3">
-        {num != null && (
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sage-deep text-[0.8rem] font-bold text-white">
-            {num}
-          </span>
-        )}
-        <h2 className="m-0 font-serif text-[1.3rem] font-semibold">{title}</h2>
-        {pill}
+    <section className={clsx("mt-12", className)} id={id} aria-label={title}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em]">{title}</h2>
+        {aside}
       </div>
-      {lead && <p className="mt-2 max-w-[75ch] text-[0.9rem] leading-relaxed text-ink-soft">{lead}</p>}
+      {lead && <p className="mt-1.5 max-w-[72ch] text-[0.9rem] leading-relaxed text-ink-soft">{lead}</p>}
       {children}
     </section>
   );
@@ -220,26 +237,32 @@ export function Callout({
   tone = "plain",
   children,
   title,
+  className,
 }: {
   tone?: "note" | "warn" | "plain" | "info";
   children: ReactNode;
   title?: string;
+  className?: string;
 }) {
   const Icon = tone === "warn" ? TriangleAlert : Info;
   return (
     <div
       role={tone === "warn" ? "alert" : "note"}
       className={clsx(
-        "mt-4 flex animate-fade-up gap-3 rounded-md2 px-4 py-3.5 text-[0.9rem] leading-relaxed",
-        tone === "note" && "bg-sage-bg text-sage-ink",
-        tone === "warn" && "bg-warn-bg text-warn-ink",
-        tone === "plain" && "bg-shell text-ink-soft",
-        tone === "info" && "bg-info-bg text-info-ink",
+        "mt-4 flex gap-3 rounded-ctl border px-4 py-3 text-[0.9rem] leading-relaxed",
+        tone === "note" && "border-pass/20 bg-pass-soft text-ink",
+        tone === "warn" && "border-fail/25 bg-fail-soft text-ink",
+        tone === "plain" && "border-line/[0.08] bg-raised text-ink-soft",
+        tone === "info" && "border-accent/20 bg-accent-soft text-ink",
+        className,
       )}
     >
-      <Icon className="mt-0.5 h-4 w-4 flex-none" aria-hidden />
-      <div>
-        {title && <b className="font-bold">{title} </b>}
+      <Icon
+        className={clsx("mt-[3px] h-4 w-4 flex-none", tone === "warn" ? "text-fail" : tone === "note" ? "text-pass" : "text-accent")}
+        aria-hidden
+      />
+      <div className="min-w-0">
+        {title && <b className="font-semibold text-ink">{title} </b>}
         {children}
       </div>
     </div>
@@ -273,20 +296,21 @@ export function Toggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={clsx(
-          "relative mt-0.5 h-5 w-9 flex-none rounded-full transition-colors duration-300 ease-soft",
-          checked ? "bg-sage" : "bg-line-strong",
+          "relative mt-0.5 h-[18px] w-8 flex-none rounded-full transition-colors duration-200",
+          checked ? "bg-accent" : "bg-ink-faint/35",
         )}
       >
         <span
           className={clsx(
-            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-300 ease-soft",
-            checked ? "translate-x-[1.1rem]" : "translate-x-0.5",
+            "absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform duration-200 ease-out",
+            checked ? "translate-x-[16px]" : "translate-x-[2px]",
           )}
         />
       </button>
-      <span className="text-[0.86rem]">
-        <span className="font-semibold text-ink">{label}</span>
-        {hint && <span className="block text-[0.78rem] text-ink-soft">{hint}</span>}
+      <span className="text-[0.88rem]">
+        <span className="font-medium text-ink">{label}</span>
+        {hint && <span className="block text-[0.8rem] leading-snug text-ink-soft">{hint}</span>}
+        {disabled && disabledHint && <span className="block text-[0.76rem] text-ink-faint">{disabledHint}</span>}
       </span>
     </label>
   );
@@ -296,14 +320,16 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={clsx("skeleton", className)} aria-hidden />;
 }
 
-export function TableWrap({ children, label }: { children: ReactNode; label: string }) {
+export function TableWrap({ children, label, className }: { children: ReactNode; label: string; className?: string }) {
   return (
-    <div className="card mt-4 animate-fade-up overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
+    <div className={clsx("panel mt-4 overflow-x-auto", className)} role="region" aria-label={label} tabIndex={0}>
       <table className="w-full border-collapse text-[0.88rem]">{children}</table>
     </div>
   );
 }
 
 export const th =
-  "whitespace-nowrap border-b border-line bg-paper/70 px-4 py-3 text-left text-[0.66rem] font-bold uppercase tracking-[0.1em] text-ink-faint";
-export const td = "border-b border-line px-4 py-2.5 align-middle";
+  "whitespace-nowrap border-b hairline bg-raised px-4 py-2.5 text-left text-[0.78rem] font-medium text-ink-faint first:pl-5";
+export const thNum = th + " text-right";
+export const td = "border-b hairline px-4 py-2.5 align-middle first:pl-5";
+export const tdNum = td + " num text-right tabular-nums";
