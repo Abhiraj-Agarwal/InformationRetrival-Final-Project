@@ -59,7 +59,7 @@ def run_systems(cfg, collection: str, split: str = "test", systems=None, latency
     queries = load_queries(collection, split)
     label_types(system, queries)
     tuned_path = models_dir(collection) / "tuned.json"
-    tuned = json.loads(tuned_path.read_text()) if tuned_path.exists() else {}
+    tuned = json.loads(tuned_path.read_text(encoding="utf-8")) if tuned_path.exists() else {}
     if not tuned:
         log.warning("no tuned.json for %s — using config tau/budget (run fit_and_tune.py first)", collection)
     sids = systems or list(SYSTEMS)
@@ -87,7 +87,7 @@ def run_systems(cfg, collection: str, split: str = "test", systems=None, latency
         extra["sweep_S8"] = pts
     risk_file = models_dir(collection) / cfg["novelty"]["risk"]["model_file"]
     if "S5" in results and risk_file.exists() and any(r["aggregate"] for r in results.values()):
-        ltt = json.loads(risk_file.read_text())
+        ltt = json.loads(risk_file.read_text(encoding="utf-8"))
         eps = ltt["epsilon"]
         s5 = {q: r["NDCG@10"] for q, r in results["S5"]["per_query"].items() if "NDCG@10" in r}
         curve = []
@@ -172,7 +172,7 @@ def write_tables(payload: dict, collection: str, split: str) -> None:
             lines.append(f"| {name} | {r['aggregate']['NDCG@10']:.3f} | {r['aggregate']['MAP']:.3f} | "
                          f"{r['mean_cost']:.2f} | {r['escalation_rate']:.0%} |")
     out = RESULTS / f"tables_{collection}_{split}.md"
-    out.write_text("\n".join(lines) + "\n")
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="")
 
 
 if __name__ == "__main__":

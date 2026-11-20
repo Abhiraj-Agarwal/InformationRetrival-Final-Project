@@ -34,6 +34,21 @@ def models_dir(collection: str) -> Path:
     return ROOT / "experiments" / "results" / "models" / collection
 
 
+def tuned_defaults(collection: str, cfg) -> dict:
+    """tau and budget of the full controller (S8) tuned on this collection's validation queries.
+
+    Falls back to ``controller.tau`` / ``controller.budget`` in the config (the cs defaults) when the collection
+    has not been tuned. Used by the CLI and the web API so interactive searches match the evaluated system.
+    """
+    import json
+
+    p = models_dir(collection) / "tuned.json"
+    t = json.loads(p.read_text(encoding="utf-8")).get("S8", {}) if p.exists() else {}
+    return {"tau": float(t.get("tau", cfg["controller"]["tau"])),
+            "budget": float(t.get("budget", cfg["controller"]["budget"])),
+            "source": "tuned on validation (S8)" if t else "config defaults"}
+
+
 class Controller:
     def __init__(self, system, tau: Optional[float] = None, budget: Optional[float] = None,
                  k: Optional[int] = None, depth: Optional[int] = None, features: Optional[dict] = None,
@@ -92,7 +107,7 @@ class Controller:
         return self._domain_cache[doms]
 
     def run_method(self, name: str, q: Query, current: Optional[list[ScoredPassage]] = None) -> tuple[list[ScoredPassage], float, dict]:
-        r = registry.get(name)
+        r = self.system.retrievers.get(name) or registry.get(name)
         if name == "expansion" and current:
             q.cache["feedback"] = current
         with timed() as t:

@@ -13,6 +13,7 @@ import csv
 import hashlib
 import logging
 import re
+import ssl
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -30,9 +31,25 @@ def _safe_name(url: str) -> str:
     return stem[-120:]
 
 
+def ssl_context() -> ssl.SSLContext:
+    """System CA store plus certifi's bundle.
+
+    Some Python builds (e.g. the Microsoft Store Python on Windows) only trust the OS store, which can lack
+    the intermediate/root a server needs -> CERTIFICATE_VERIFY_FAILED. Adding certifi fixes that.
+    """
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+
+        ctx.load_verify_locations(certifi.where())
+    except ImportError:  # pragma: no cover
+        pass
+    return ctx
+
+
 def _fetch(url: str, timeout: int = 120) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (trusted list)
+    with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:  # noqa: S310 (trusted list)
         return r.read()
 
 
@@ -59,7 +76,7 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
 def download_all(sources_csv: Path, raw_dir: Path, sleep_s: float = 1.0) -> list[dict]:
     """Download every source; returns rows with local path, sha1 and status."""
     raw_dir.mkdir(parents=True, exist_ok=True)
-    with open(sources_csv, newline="") as f:
+    with open(sources_csv, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     ids = [r["url"].rsplit("/", 1)[-1] for r in rows if "arxiv.org" in r["url"]]
     titles = arxiv_titles(ids)
@@ -85,7 +102,7 @@ def download_all(sources_csv: Path, raw_dir: Path, sleep_s: float = 1.0) -> list
         sha = hashlib.sha1(dest.read_bytes()).hexdigest() if dest.exists() else ""
         out.append({**r, "file": dest.name, "sha1": sha, "status": status})
         log.info("%s %s", status, r["url"])
-    with open(raw_dir / "download_log.csv", "w", newline="") as f:
+    with open(raw_dir / "download_log.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)

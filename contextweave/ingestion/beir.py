@@ -22,7 +22,7 @@ VAL_SPLIT = {"scifact": "train", "nfcorpus": "dev"}
 
 def _read_qrels(path: Path) -> dict[str, dict[str, int]]:
     out: dict[str, dict[str, int]] = {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         rd = csv.reader(f, delimiter="\t")
         next(rd)  # header
         for qid, did, score in rd:
@@ -35,7 +35,7 @@ def convert(name: str, src_dir: Path, processed_dir: Path, bench_dir: Path,
     """Convert one BEIR dataset. Returns simple statistics."""
     base = src_dir / name
     passages = []
-    with open(base / "corpus.jsonl") as f:
+    with open(base / "corpus.jsonl", encoding="utf-8") as f:
         for line in f:
             d = json.loads(line)
             text = (d.get("title", "") + ". " + d.get("text", "")).strip(". ").strip()
@@ -45,7 +45,7 @@ def convert(name: str, src_dir: Path, processed_dir: Path, bench_dir: Path,
     write_passages(passages, processed_dir / name / "passages.jsonl")
 
     qtext = {}
-    with open(base / "queries.jsonl") as f:
+    with open(base / "queries.jsonl", encoding="utf-8") as f:
         for line in f:
             d = json.loads(line)
             qtext[str(d["_id"])] = d["text"]
@@ -57,7 +57,7 @@ def convert(name: str, src_dir: Path, processed_dir: Path, bench_dir: Path,
         val_ids = sorted(rng.sample(val_ids, max_val))
     out_dir = bench_dir / name
     out_dir.mkdir(parents=True, exist_ok=True)
-    with open(out_dir / "queries.jsonl", "w") as fq, open(out_dir / "qrels.tsv", "w") as fr:
+    with open(out_dir / "queries.jsonl", "w", encoding="utf-8", newline="") as fq, open(out_dir / "qrels.tsv", "w", encoding="utf-8", newline="") as fr:
         fr.write("qid\tpassage_id\tgrade\n")
         for split, ids, qrels in [("val", val_ids, val), ("test", sorted(test), test)]:
             for qid in ids:

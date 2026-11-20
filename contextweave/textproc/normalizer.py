@@ -15,7 +15,7 @@ from contextweave.textproc.tokenizer import is_technical, tokenize
 
 _STOP_PATH = Path(__file__).with_name("stopwords_en.txt")
 # NLTK's English stop-word list, bundled for reproducibility (no download needed).
-STOPWORDS: frozenset[str] = frozenset(w.strip() for w in _STOP_PATH.read_text().splitlines() if w.strip())
+STOPWORDS: frozenset[str] = frozenset(w.strip() for w in _STOP_PATH.read_text(encoding="utf-8").splitlines() if w.strip())
 _STEMMER = PorterStemmer()
 
 

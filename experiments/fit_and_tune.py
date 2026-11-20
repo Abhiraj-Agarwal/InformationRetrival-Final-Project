@@ -199,7 +199,7 @@ def main(collection: str) -> dict:
     tuned["N3"] = {"tau": ltt["tau"], "budget": bmax, "certified": ltt["certified"]}
 
     (out_dir / "tuned.json").write_text(json.dumps({k: ({kk: vv for kk, vv in v.items() if kk != "grid"}
-                                                        if k != "alpha" else v) for k, v in tuned.items()}, indent=1))
+                                                        if k != "alpha" else v) for k, v in tuned.items()}, indent=1), encoding="utf-8", newline="")
     summary.update({"tuned": tuned, "ltt": ltt, "voc_table": gm.table, "config": config_snapshot(cfg)})
     save_results(summary, f"tuning_{collection}")
     return summary

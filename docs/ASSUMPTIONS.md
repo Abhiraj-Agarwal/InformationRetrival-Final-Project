@@ -96,3 +96,22 @@ Written during the build (checkpoints C0–C6). Anything here can be changed by 
   controls escalation. A δ-curve (0.05–0.30) is also stored and validated on the test split.
 - Value-of-computation gains are fitted from an exhaustive simulation of every escalation order on the validation
   queries; λ is tuned with the same objective as τ.
+
+## Web UI (replaces the Streamlit app)
+- **Stack:** FastAPI (`api/`) + React/TypeScript/Tailwind built with Vite (`web/`), the same front-end stack as the
+  team's other projects. `python main.py serve` serves both from one port; the UI is built once with `npm run build`.
+- **Look:** follows the team's Clothing Search Engine UI (`ui_theme.py`): paper background, sage accent, Fraunces
+  headings, Plus Jakarta Sans text. Light theme only, so projector demos and screenshots never come out inverted.
+  The chart accent is a slightly more saturated sage (`#3f7a34`) that passes the colour-blind / contrast checks.
+- **Six Streamlit tabs became three pages.** Lexical, Semantic and Controller-trace detail now sit under each search
+  result ("decision path", "what each method retrieved", "confidence signals"); Analytics became Evaluation.
+- **Interactive searches use the collection's tuned S8 τ and budget** (`experiments/results/models/<c>/tuned.json`),
+  in the UI and in `main.py search`, so what you see matches the evaluated system. The cs corpus falls back to the
+  config values until it is tuned.
+- **The Evaluation page only reads `experiments/results/*.json`;** it never recomputes a number. The Boolean baseline
+  (NDCG@10 ≈ 0.04) is listed under the chart rather than plotted, so it does not flatten the scale.
+- **Each `System` owns its retrievers** (`System.retrievers`); the global registry is still filled for older code.
+  The server keeps one System per collection and loads them on demand, sometimes concurrently.
+- **Transformers ≥ 5 load report:** all-MiniLM-L6-v2 was saved with a `position_ids` buffer that newer transformers
+  rebuild instead of loading, so it was reported as UNEXPECTED. Verified identical (0..511) and the embeddings
+  unchanged (cosine 1.0 against the stored index); only that exact finding is silenced (`semantic/embedder.py`).

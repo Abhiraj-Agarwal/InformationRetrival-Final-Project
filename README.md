@@ -21,14 +21,16 @@ BM25 matches rank-bm25 score-for-score and every metric matches ir-measures.
 ## Quick start
 
 ```bash
-make setup                 # CPU PyTorch + requirements (Python 3.10+)
+make setup                 # CPU PyTorch + requirements (Python 3.10+) + the web UI's npm packages (Node 18+)
 make data                  # download open PDFs + BEIR SciFact/NFCorpus, extract, clean, chunk
 make index                 # inverted index, champion lists, embeddings, FAISS (all collections)
 make calibrate-costs       # measure method costs -> config/settings.yaml
-make test                  # pytest (44 tests)
+make test                  # pytest (engine + API) and the web UI's unit tests
 make eval-quick            # tune on validation queries + main systems on validation
 make eval                  # all systems on test + ablations + sweeps + plots + tables
-make app                   # Streamlit UI at http://localhost:8501
+make web                   # build the React UI into web/dist (once, and after UI changes)
+make serve                 # UI + JSON API at http://127.0.0.1:8000   (API docs: /api/docs)
+make e2e                   # browser tests against the real server (uses the installed Microsoft Edge)
 ```
 
 CLI:
@@ -39,6 +41,33 @@ python main.py search "semaphore AND NOT deadlock" --mode boolean
 python main.py search "statins" --collection nfcorpus --mode hybrid
 python main.py evaluate --collection scifact --split val --systems S2,S5,S8
 ```
+
+## Web UI
+
+The UI is a React + TypeScript + Tailwind single-page app (`web/`) served by a FastAPI backend (`api/`).
+Its look follows the team's Clothing Search Engine UI: warm paper surfaces, sage accents, Fraunces + Plus Jakarta Sans.
+
+| Page | What it shows |
+|---|---|
+| **Search** | search box + examples; method picker (Adaptive, BM25, Dense, Hybrid, more); controller settings (budget, τ, expansion, ContextWeave+ extensions, domain filter); cost / confidence / latency tiles; the **decision path** (route → retrieve → confidence → escalate or stop); results with highlighted snippets, "why this result" and the full passage; what each method retrieved, query expansion and the confidence signals |
+| **Evaluation** | saved results only (never recomputed): headline numbers, quality-vs-cost chart, every system, significance vs the fixed hybrid, ablations, Learn-then-Test risk control |
+| **Judge** | grading the cs pool 0/1/2 with keyboard shortcuts, progress, per-annotator logs for Cohen's κ |
+
+```bash
+cd web && npm install && npm run build && cd ..   # once (make web)
+python main.py serve                              # http://127.0.0.1:8000
+
+# development: hot-reloading UI on :5173, API on :8000
+python main.py serve        # terminal 1
+cd web && npm run dev       # terminal 2 -> http://localhost:5173
+```
+
+A search can be shared as a link: `http://127.0.0.1:8000/?c=nfcorpus&q=statins&mode=bm25`.
+
+Tests: `python -m pytest` (engine + API, including a contract test that the UI's fixtures match the API),
+`cd web && npm test` (UI unit tests), `cd web && npm run e2e` (Playwright in the installed Microsoft Edge, real
+indexes; set `PW_CHANNEL=chrome` elsewhere). If an API response changes, regenerate the UI fixtures with
+`python -m tests.make_ui_fixtures`.
 
 ## Collections
 
@@ -61,7 +90,8 @@ python main.py evaluate --collection scifact --split val --systems S2,S5,S8
 | `contextweave/controller/` | features, router, confidence, budget, fusion, main loop; VoC, risk control, QPP fusion | M4 |
 | `contextweave/evaluation/` | metrics, benchmark/pooling, runner, significance, calibration, agreement, plots | M4 |
 | `contextweave/system.py` | composition root: the only module importing concrete retrievers; registers them by name | team |
-| `app/` | Streamlit main page + one file per panel (lexical, semantic, controller, analytics, judge) | all |
+| `api/` | FastAPI server: JSON endpoints for search, passages, saved results and judging; serves the built UI | all |
+| `web/` | React + TypeScript + Tailwind UI (Search, Evaluation, Judge pages), Vitest unit tests, Playwright e2e tests | all |
 | `experiments/` | `fit_and_tune.py` (validation only), `run_all.py`, `ablations.py`, `systems.py`, `results/` | M4 |
 
 Adding a retriever: implement `name`, `cost`, `search(query, k, candidate_ids)` and `registry.register(...)` it in
@@ -90,7 +120,7 @@ Every number in the report comes from `experiments/results/*.json` (timestamp, h
 
 ## Labelling the cs benchmark (team task)
 
-1. `make app` → **✅ Judge** tab, enter your name, grade passages 0/1/2 (`benchmark/judging_guidelines.md`).
+1. `python main.py serve` → **Judge** page, enter your name, grade passages 0/1/2 (keys `0` `1` `2`; `benchmark/judging_guidelines.md`).
 2. Two people grade the same 16 queries; `python -c "from contextweave.evaluation.agreement import kappa_report; kappa_report()"`.
 3. `make eval COLLECTIONS=cs` produces the cs tables and figures for the report.
 
@@ -104,6 +134,6 @@ Every number in the report comes from `experiments/results/*.json` (timestamp, h
 | C3 Semantic | semantic example query works | ✅ PageRank/link-analysis passages for the "importance of a webpage" query |
 | C4 Controller | trace shows a stop and an escalation | ✅ `tests/test_controller.py` |
 | C5 Evaluation | metrics = ir-measures; results + plots saved | ✅ `tests/test_evaluation.py`, `experiments/results/` |
-| C6 UI | example queries end to end | ✅ `tests/test_app.py` (headless Streamlit) |
+| C6 UI | example queries end to end | ✅ `tests/test_api.py` (API), `web/src/**/*.test.tsx` (UI), `web/e2e/` (browser, real indexes) |
 
 See `docs/ASSUMPTIONS.md` for every interpretation of the spec and every deviation.

@@ -5,6 +5,7 @@
     python main.py search "query" [--mode auto|bm25|tfidf|dense|hybrid|boolean|...] [--k 10]
     python main.py evaluate [--split val|test] [--systems S2,S7] [--collection cs]
     python main.py calibrate-costs [--collection cs]
+    python main.py serve [--port 8000]          # web UI + JSON API (build the UI once: cd web && npm run build)
 """
 from __future__ import annotations
 
@@ -24,8 +25,10 @@ def _cmd_data(args, cfg):
 
     if args.download:
         download_all(Path("data/sources.csv"), Path(cfg["paths"]["raw"]))
-    stats = build_corpus(cfg)
-    print(json.dumps(stats, indent=2))
+    try:
+        print(json.dumps(build_corpus(cfg), indent=2))
+    except FileNotFoundError as exc:  # cs PDFs not downloaded: still convert the BEIR collections
+        print(f"skipping cs corpus: {exc}")
     ext = Path(cfg["paths"]["external"])
     for name in ("scifact", "nfcorpus"):
         if (ext / name / "corpus.jsonl").exists():
@@ -45,9 +48,15 @@ def _cmd_build_index(args, cfg):
 def _cmd_search(args, cfg):
     from contextweave.system import load_system
 
+    from contextweave.controller.engine import tuned_defaults
+
     system = load_system(cfg, collection=args.collection, semantic=args.mode not in
                          {"bm25", "tfidf", "boolean", "bm25_champion", "bm25_ie"})
-    engine = system.engine()
+    if system.embedder is not None:  # load the model now, so the reported latency is the search itself
+        system.embedder.encode(["warm-up"])
+    d = tuned_defaults(args.collection, cfg)
+    engine = system.engine(tau=args.tau if args.tau is not None else d["tau"],
+                           budget=args.budget if args.budget is not None else d["budget"])
     resp = engine.search(args.query, mode=args.mode, k=args.k)
     print(f"mode={resp.mode} cost={resp.total_cost:.2f} latency={resp.total_latency_ms:.1f}ms terms={resp.query.terms}")
     for st in resp.trace:
@@ -68,6 +77,13 @@ def _cmd_evaluate(args, cfg):
     out = run_systems(cfg, collection=args.collection, split=args.split,
                       systems=args.systems.split(",") if args.systems else None)
     print(out)
+
+
+def _cmd_serve(args, cfg):
+    import uvicorn
+
+    print(f"ContextWeave UI + API on http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    uvicorn.run("api.server:app", host=args.host, port=args.port, reload=args.reload, log_level="warning")
 
 
 def _cmd_calibrate(args, cfg):
@@ -91,6 +107,12 @@ def main(argv=None) -> int:
     s.add_argument("--mode", default="auto")
     s.add_argument("--k", type=int, default=10)
     s.add_argument("--collection", default=None)
+    s.add_argument("--budget", type=float, default=None, help="cost units (default: tuned for the collection)")
+    s.add_argument("--tau", type=float, default=None, help="confidence threshold (default: tuned)")
+    v = sub.add_parser("serve", help="web UI + JSON API (FastAPI)")
+    v.add_argument("--host", default="127.0.0.1")
+    v.add_argument("--port", type=int, default=8000)
+    v.add_argument("--reload", action="store_true", help="auto-reload the API on code changes (development)")
     e = sub.add_parser("evaluate")
     e.add_argument("--split", default="val")
     e.add_argument("--systems", default=None)
@@ -102,10 +124,10 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_config(args.config)
-    if getattr(args, "collection", None) is None and args.cmd != "data":
+    if getattr(args, "collection", None) is None and args.cmd not in ("data", "serve"):
         args.collection = cfg["collection"]
     {"data": _cmd_data, "build-index": _cmd_build_index, "search": _cmd_search, "evaluate": _cmd_evaluate,
-     "calibrate-costs": _cmd_calibrate}[args.cmd](args, cfg)
+     "calibrate-costs": _cmd_calibrate, "serve": _cmd_serve}[args.cmd](args, cfg)
     return 0
 
 

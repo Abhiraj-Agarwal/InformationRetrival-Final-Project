@@ -26,7 +26,7 @@ def bench_dir(collection: str) -> Path:
 
 def load_queries(collection: str, split: Optional[str] = None) -> list[BenchQuery]:
     out = []
-    with open(bench_dir(collection) / "queries.jsonl") as f:
+    with open(bench_dir(collection) / "queries.jsonl", encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 d = json.loads(line)
@@ -41,7 +41,7 @@ def load_qrels(collection: str, path: Optional[Path] = None) -> dict[str, dict[s
     qrels: dict[str, dict[str, int]] = {}
     if not p.exists():
         return qrels
-    with open(p) as f:
+    with open(p, encoding="utf-8") as f:
         rd = csv.reader(f, delimiter="\t")
         for row in rd:
             if not row or row[0] == "qid":
@@ -60,12 +60,12 @@ def write_qrel(collection: str, qid: str, pid: str, grade: int, annotator: str =
             for pid_, g in d.items():
                 rows[(q, pid_)] = g
     rows[(qid, pid)] = int(grade)
-    with open(p, "w") as f:
+    with open(p, "w", encoding="utf-8", newline="") as f:
         f.write("qid\tpassage_id\tgrade\n")
         for (q, d), g in sorted(rows.items()):
             f.write(f"{q}\t{d}\t{g}\n")
     if annotator:  # keep a per-annotator log for Cohen's kappa
-        with open(bench_dir(collection) / f"judgements_{annotator}.tsv", "a") as f:
+        with open(bench_dir(collection) / f"judgements_{annotator}.tsv", "a", encoding="utf-8", newline="") as f:
             f.write(f"{qid}\t{pid}\t{grade}\n")
 
 

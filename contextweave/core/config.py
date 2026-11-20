@@ -42,7 +42,7 @@ def deep_update(base: dict, override: dict) -> dict:
 def load_config(path: str | Path | None = None, overrides: dict | None = None) -> Config:
     """Load YAML config, apply optional overrides, and resolve paths relative to repo root."""
     p = Path(path) if path else DEFAULT_PATH
-    with open(p) as f:
+    with open(p, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     data = deep_update(data, overrides or {})
     paths = data.setdefault("paths", {})

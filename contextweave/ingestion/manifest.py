@@ -52,14 +52,14 @@ def _source_titles(raw_dir: Path) -> dict[str, str]:
     p = raw_dir / "download_log.csv"
     if not p.exists():
         return {}
-    with open(p, newline="") as f:
+    with open(p, newline="", encoding="utf-8") as f:
         return {r["url"]: r["title"] for r in csv.DictReader(f)}
 
 
 def write_passages(passages: Iterable[Passage], path: Path) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     n = 0
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8", newline="") as f:
         for p in passages:
             f.write(json.dumps(p.to_dict(), ensure_ascii=False) + "\n")
             n += 1
@@ -68,7 +68,7 @@ def write_passages(passages: Iterable[Passage], path: Path) -> int:
 
 def load_passages(path: Path) -> list[Passage]:
     """Read passages.jsonl back into Passage objects."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return [Passage(**json.loads(line)) for line in f if line.strip()]
 
 
@@ -82,7 +82,7 @@ def build_corpus(cfg: Config, sources_csv: Path | None = None, raw_dir: Path | N
     ing, ch = cfg["ingestion"], cfg["chunking"]
     titles = _source_titles(raw_dir)
 
-    with open(sources_csv, newline="") as f:
+    with open(sources_csv, newline="", encoding="utf-8") as f:
         sources = list(csv.DictReader(f))
     manifest, rejected, passages = [], [], []
     doc_no = 0
@@ -119,12 +119,15 @@ def build_corpus(cfg: Config, sources_csv: Path | None = None, raw_dir: Path | N
                              "n_words": sum(p.n_tokens for p in ps)})
             log.info("%s %-70s pages=%d passages=%d", doc_id, rd.title[:70], len(pages), len(ps))
 
+    if not passages:  # never overwrite the committed manifest with an empty one
+        raise FileNotFoundError(f"no source PDFs found in {raw_dir} - run `python -m contextweave.ingestion.download` "
+                                f"first ({len(rejected)} sources missing or rejected)")
     write_passages(passages, out_dir / "passages.jsonl")
-    with open(manifest_path, "w", newline="") as f:
+    with open(manifest_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=MANIFEST_FIELDS)
         w.writeheader()
         w.writerows(manifest)
-    with open(out_dir / "rejected.csv", "w", newline="") as f:
+    with open(out_dir / "rejected.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["source", "reason"])
         w.writeheader()
         w.writerows(rejected)

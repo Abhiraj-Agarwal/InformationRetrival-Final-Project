@@ -52,8 +52,8 @@ def ltt_select(losses_by_tau: dict[float, list[int]], costs_by_tau: dict[float, 
 
 
 def save(result: dict, path: str | Path) -> None:
-    Path(path).write_text(json.dumps(result, indent=1))
+    Path(path).write_text(json.dumps(result, indent=1), encoding="utf-8", newline="")
 
 
 def load_tau(path: str | Path) -> float:
-    return float(json.loads(Path(path).read_text())["tau"])
+    return float(json.loads(Path(path).read_text(encoding="utf-8"))["tau"])

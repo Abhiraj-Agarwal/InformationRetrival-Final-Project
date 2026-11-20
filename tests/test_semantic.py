@@ -50,3 +50,25 @@ def test_fake_embedder_is_normalised():
     e = FakeEmbedder()
     v = e.encode(["bm25 ranking", "tcp congestion"])
     assert np.allclose(np.linalg.norm(v, axis=1), 1.0, atol=1e-5)
+
+
+def _report(rows):
+    import logging
+
+    table = "Key                     | Status     |  | \n------------------------+------------+--+-\n"
+    table += "".join(f"{k} | {s} |  | \n" for k, s in rows)
+    return logging.LogRecord("transformers.modeling_utils", logging.WARNING, "", 0,
+                             "BertModel LOAD REPORT from: x\n" + table, None, None)
+
+
+def test_benign_position_ids_load_report_is_silenced_but_real_problems_are_not():
+    import logging
+
+    from contextweave.semantic.embedder import _BenignLoadReportFilter
+
+    f = _BenignLoadReportFilter()
+    assert not f.filter(_report([("embeddings.position_ids", "UNEXPECTED")]))      # transformers>=5 + old ckpt
+    assert f.filter(_report([("encoder.layer.0.attention.self.query.weight", "MISSING")]))
+    assert f.filter(_report([("embeddings.position_ids", "UNEXPECTED"), ("pooler.dense.weight", "MISSING")]))
+    assert f.filter(_report([("classifier.weight", "UNEXPECTED")]))
+    assert f.filter(logging.LogRecord("x", logging.WARNING, "", 0, "some other warning", None, None))

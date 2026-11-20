@@ -48,9 +48,9 @@ class QppFusion:
                    "alpha_rule": rule_alpha}
 
     def save(self, path: str | Path) -> None:
-        Path(path).write_text(json.dumps({"reference": self.ref, "mix": self.mix}))
+        Path(path).write_text(json.dumps({"reference": self.ref, "mix": self.mix}), encoding="utf-8", newline="")
 
     @classmethod
     def load(cls, path: str | Path) -> "QppFusion":
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls(d["reference"], d["mix"])

@@ -54,11 +54,11 @@ class GainModel:
 
     # ------------------------------------------------------------ persistence
     def save(self, path: str | Path) -> None:
-        Path(path).write_text(json.dumps({"bins": self.bins, "prior_strength": self.m, "table": self.table}, indent=1))
+        Path(path).write_text(json.dumps({"bins": self.bins, "prior_strength": self.m, "table": self.table}, indent=1), encoding="utf-8", newline="")
 
     @classmethod
     def load(cls, path: str | Path) -> "GainModel":
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls(d["bins"], d["prior_strength"], d["table"])
 
 

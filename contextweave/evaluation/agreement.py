@@ -12,7 +12,7 @@ def load_annotations(collection: str = "cs") -> dict[str, dict[tuple[str, str], 
     out: dict[str, dict[tuple[str, str], int]] = {}
     for p in bench_dir(collection).glob("judgements_*.tsv"):
         name = p.stem.removeprefix("judgements_")
-        with open(p) as f:
+        with open(p, encoding="utf-8") as f:
             for qid, pid, g in csv.reader(f, delimiter="\t"):
                 out.setdefault(name, {})[(qid, pid)] = int(g)  # last judgement wins
     return out

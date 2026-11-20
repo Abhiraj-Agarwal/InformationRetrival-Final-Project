@@ -43,6 +43,10 @@ class System:
     embedder: Any = None
     vectors: Any = None
     extras: dict = field(default_factory=dict)
+    # This system's own retrievers. The registry is global, so loading a second collection (e.g. switching
+    # collections in the UI) replaces its entries; the controller uses these first so a cached System keeps
+    # searching its own indexes. Empty -> the controller falls back to the global registry.
+    retrievers: dict = field(default_factory=dict)
 
     def query(self, raw: str, filters: Optional[dict] = None) -> Query:
         return build_query(raw, self.normalize, self.index.idf, self.index.df, filters)
@@ -94,18 +98,27 @@ def load_system(cfg: Optional[Config] = None, collection: Optional[str] = None, 
     scorer = BM25Scorer(index, b["k1"], b["b"], b.get("idf_variant", "lucene"))
     costs = cfg["costs"]
     ie = cfg["index_elimination"]
-    registry.clear()
-    registry.register(BooleanRetriever(index, norm, costs.get("boolean", 0.2)))
-    registry.register(TfidfRetriever(index, costs["tfidf"]))
-    registry.register(BM25Retriever(scorer, costs["bm25"]))
-    registry.register(IndexEliminationRetriever(scorer, ie["idf_threshold"], ie["min_terms_matched"],
-                                                costs.get("bm25_ie", 0.6)))
-    registry.register(ChampionRetriever(scorer, cfg["champion"]["r"], ie["idf_threshold"],
-                                        ie["min_terms_matched"], costs["bm25_champion"]))
     system = System(cfg, store, index, scorer, norm)
+    registry.clear()
+    for r in (BooleanRetriever(index, norm, costs.get("boolean", 0.2)), TfidfRetriever(index, costs["tfidf"]),
+              BM25Retriever(scorer, costs["bm25"]),
+              IndexEliminationRetriever(scorer, ie["idf_threshold"], ie["min_terms_matched"], costs.get("bm25_ie", 0.6)),
+              ChampionRetriever(scorer, cfg["champion"]["r"], ie["idf_threshold"], ie["min_terms_matched"],
+                                costs["bm25_champion"])):
+        _add(system, r)
     if semantic:
         attach_semantic(system, build_missing=build_missing)
     return system
+
+
+def _add(system: System, retriever) -> None:
+    """Give ``system`` its own reference to ``retriever`` and register it globally by name.
+
+    ``system.retrievers`` is filled directly (never read back from the global registry), so two collections
+    loaded at the same time - e.g. by two web requests - cannot end up with each other's retrievers.
+    """
+    system.retrievers[retriever.name] = retriever
+    registry.register(retriever)
 
 
 def attach_semantic(system: System, build_missing: bool = True) -> None:
@@ -122,10 +135,10 @@ def attach_semantic(system: System, build_missing: bool = True) -> None:
     vs = FaissStore.load_or_build(paths, system.store, embedder, build_missing=build_missing)
     system.embedder, system.vectors, system.semantic = embedder, vs, True
     costs = cfg["costs"]
-    registry.register(DenseRetriever(vs, embedder, costs["dense"]))
+    _add(system, DenseRetriever(vs, embedder, costs["dense"]))
     e = cfg["expansion"]
-    registry.register(ExpansionRetriever(system.scorer, system.index, system.store, embedder, vs,
-                                         system.normalize, cost=costs["expansion"], max_terms=e["max_terms"],
-                                         weight=e["weight"], feedback_docs=e["feedback_docs"],
-                                         candidate_terms=e["candidate_terms"],
-                                         min_similarity=e["min_similarity"]))
+    _add(system, ExpansionRetriever(system.scorer, system.index, system.store, embedder, vs,
+                                    system.normalize, cost=costs["expansion"], max_terms=e["max_terms"],
+                                    weight=e["weight"], feedback_docs=e["feedback_docs"],
+                                    candidate_terms=e["candidate_terms"],
+                                    min_similarity=e["min_similarity"]))

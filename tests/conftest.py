@@ -50,7 +50,7 @@ class FakeEmbedder:
         return self.encode(list(terms)) if terms else np.zeros((0, self.dim), np.float32)
 
 
-def make_fixture_system(features=None):
+def make_fixture_system(features=None, passages=None):
     """A full System over the fixture corpus with the fake embedder registered."""
     from functools import partial
 
@@ -72,7 +72,7 @@ def make_fixture_system(features=None):
     cfg = load_config(overrides={"collection": "fixture", "features": features or {},
                                  "retrieval": {"k": 5, "depth": 20}, "champion": {"r": 5},
                                  "index_elimination": {"idf_threshold": 0.5, "min_terms_matched": 1}})
-    store = PassageStore.from_jsonl(FIXTURES / "passages.jsonl")
+    store = PassageStore.from_jsonl(passages or FIXTURES / "passages.jsonl")
     norm = partial(normalize_from_config, cfg=cfg)
     index = build_index(store.passages, norm)
     scorer = BM25Scorer(index)

@@ -57,7 +57,7 @@ class FaissStore:
         emb_path, meta_path = Path(paths["embeddings"]), Path(paths["meta"])
         fp = _fingerprint(store)
         if emb_path.exists() and meta_path.exists():
-            meta = json.loads(meta_path.read_text())
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
             if meta.get("fingerprint") == fp and meta.get("model") == embedder.model_name:
                 return cls(np.load(emb_path), [p.passage_id for p in store], store.doc_of)
             log.warning("embedding cache is stale; rebuilding")
@@ -69,7 +69,7 @@ class FaissStore:
         emb_path.parent.mkdir(parents=True, exist_ok=True)
         np.save(emb_path, vecs)
         meta_path.write_text(json.dumps({"model": embedder.model_name, "n": len(texts), "dim": int(vecs.shape[1]),
-                                         "fingerprint": fp, "seconds": round(time.perf_counter() - t, 1)}))
+                                         "fingerprint": fp, "seconds": round(time.perf_counter() - t, 1)}), encoding="utf-8", newline="")
         fs = cls(vecs, [p.passage_id for p in store], store.doc_of)
         faiss.write_index(fs.index, str(paths["faiss"]))
         return fs

@@ -58,7 +58,7 @@ def calibrate_costs(cfg: Config, collection: str | None = None, write: bool = Tr
 
 def _write_costs(collection: str, costs: dict[str, float], cfg: Config, path: Path = DEFAULT_PATH) -> None:
     """Update ``costs_by_collection.<collection>`` (and ``costs`` for the default collection)."""
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     flow = "{" + ", ".join(f"{k}: {v}" for k, v in costs.items()) + "}"
     if collection == cfg["collection"]:
         text = re.sub(r"^costs: \{[^}]*\}", f"costs: {flow}", text, flags=re.M)
@@ -71,5 +71,5 @@ def _write_costs(collection: str, costs: dict[str, float], cfg: Config, path: Pa
     else:
         text = text.replace("costs_by_collection:   # measured by `make calibrate-costs`\n",
                             "costs_by_collection:   # measured by `make calibrate-costs`\n" + line, 1)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8", newline="")
     log.info("wrote costs for %s: %s", collection, flow)

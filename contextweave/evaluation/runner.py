@@ -71,12 +71,12 @@ def hardware() -> dict:
     info = {"python": platform.python_version(), "platform": platform.platform(), "machine": platform.machine(),
             "cpu_count": os.cpu_count()}
     try:
-        with open("/proc/cpuinfo") as f:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
             for line in f:
                 if line.startswith("model name"):
                     info["cpu"] = line.split(":", 1)[1].strip()
                     break
-        with open("/proc/meminfo") as f:
+        with open("/proc/meminfo", encoding="utf-8") as f:
             info["mem_gb"] = round(int(f.readline().split()[1]) / 1e6, 1)
     except OSError:
         pass
@@ -156,8 +156,8 @@ def save_results(payload: dict, name: str) -> Path:
     ts = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     payload = {"timestamp_utc": ts, "hardware": hardware(), **payload}
     path = RESULTS / f"{name}_{ts}.json"
-    path.write_text(json.dumps(payload, indent=1, default=float))
-    (RESULTS / f"{name}_latest.json").write_text(json.dumps(payload, indent=1, default=float))
+    path.write_text(json.dumps(payload, indent=1, default=float), encoding="utf-8", newline="")
+    (RESULTS / f"{name}_latest.json").write_text(json.dumps(payload, indent=1, default=float), encoding="utf-8", newline="")
     log.info("saved %s", path)
     return path
 

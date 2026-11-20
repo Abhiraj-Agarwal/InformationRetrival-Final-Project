@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    line-height: 1.45;
+    background:
+      radial-gradient(900px 420px at 6% -140px, #e4eedc 0%, transparent 70%),
+      radial-gradient(760px 380px at 100% -100px, #f2ecdd 0%, transparent 70%),
+      #f5f4ef;
+    background-repeat: no-repeat;
+    background-color: #f5f4ef;
+  }
+  ::selection {
+    background: #d6e6cd;
+  }
+  :focus-visible {
+    outline: 2px solid #46703f;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  .label-caps {
+    @apply text-[0.66rem] font-bold uppercase tracking-[0.12em] text-ink-faint;
+  }
+  .card {
+    @apply rounded-lg2 bg-surface shadow-soft;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .snippet mark {
+    @apply rounded-[0.3rem] bg-sage-bg px-[0.2rem] py-[0.05rem] font-semibold text-sage-ink;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #ecebe3 0px, #f6f5ef 120px, #ecebe3 240px);
+    background-size: 800px 100%;
+    @apply animate-shimmer rounded-md2;
+  }
+}
+
+/* range inputs in sage */
+input[type="range"] {
+  accent-color: #46703f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

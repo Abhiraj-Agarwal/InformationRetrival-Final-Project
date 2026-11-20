@@ -20,7 +20,7 @@ class PassageStore:
 
     @classmethod
     def from_jsonl(cls, path: str | Path) -> "PassageStore":
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return cls(Passage(**json.loads(line)) for line in f if line.strip())
 
     def __len__(self) -> int:

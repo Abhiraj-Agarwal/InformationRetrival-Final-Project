@@ -1,11 +1,12 @@
 PY ?= python3
 COLLECTIONS ?= cs scifact nfcorpus
 
-.PHONY: setup data index calibrate-costs test eval-quick eval ablations app pool clean-index
+.PHONY: setup data index calibrate-costs test test-web e2e eval-quick eval ablations web serve dev pool clean-index
 
-setup:            ## install requirements (CPU torch)
+setup:            ## install requirements (CPU torch) + the web UI's packages
 	$(PY) -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 	$(PY) -m pip install -r requirements.txt
+	cd web && npm install
 
 data:             ## download sources, extract, clean, chunk -> data/processed/<collection>/passages.jsonl
 	$(PY) -m contextweave.ingestion.download
@@ -18,8 +19,15 @@ index:            ## inverted index, champion lists, embeddings, FAISS (all coll
 calibrate-costs:  ## measure method costs and update config/settings.yaml
 	for c in $(COLLECTIONS); do $(PY) main.py calibrate-costs --collection $$c; done
 
-test:             ## pytest
+test:             ## pytest (engine + API) and the web UI's unit tests
 	$(PY) -m pytest
+	cd web && npm test
+
+test-web:         ## web UI unit tests + type check only
+	cd web && npm run type-check && npm test
+
+e2e:              ## browser tests against the running server (python main.py serve) - uses installed Edge
+	cd web && npm run e2e
 
 eval-quick:       ## tune on validation queries, then main systems on validation
 	$(PY) experiments/fit_and_tune.py $(COLLECTIONS)
@@ -35,8 +43,14 @@ pool:             ## build the judging pool for the cs benchmark
 ablations:        ## ablations + quality-vs-cost sweep only
 	$(PY) experiments/ablations.py $(COLLECTIONS)
 
-app:              ## start Streamlit
-	$(PY) -m streamlit run app/streamlit_app.py
+web:              ## build the web UI into web/dist
+	cd web && npm run build
+
+serve:            ## UI + API at http://127.0.0.1:8000 (run `make web` once first)
+	$(PY) main.py serve
+
+dev:              ## UI with hot reload at http://localhost:5173 (needs `make serve` in another terminal)
+	cd web && npm run dev
 
 clean-index:
 	rm -rf indexes/
