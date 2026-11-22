@@ -60,6 +60,9 @@ describe("Search page", () => {
     expect(results[0].querySelector("mark")).not.toBeNull(); // query terms highlighted
     expect(screen.getByRole("list", { name: "Decision path" })).toBeInTheDocument();
     expect(screen.getByText(/confidence stayed below τ/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "What each method retrieved" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show the full analysis" }));
+    expect(screen.getByRole("region", { name: "How the query was read" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "What each method retrieved" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Query expansion" })).toBeInTheDocument();
   });
@@ -74,7 +77,7 @@ describe("Search page", () => {
     expect(first).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByText(/Query terms in this passage/)[0]).toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: /Read full passage/ })[0]);
+    await user.click(screen.getByRole("button", { name: fixtures.searchAuto.results[0].title }));
     const dialog = await screen.findByRole("dialog", { name: "Full passage" });
     expect(await within(dialog).findByText("Full passage text about semaphores.")).toBeInTheDocument();
     await user.keyboard("{Escape}");
@@ -88,15 +91,15 @@ describe("Search page", () => {
     await user.click(await screen.findByRole("button", { name: fixtures.collections.collections[0].examples[0] }));
     await screen.findByRole("heading", { name: "Results" });
 
-    await user.click(screen.getByRole("radio", { name: "BM25" }));
+    await user.selectOptions(screen.getByLabelText("Method"), "bm25");
     await waitFor(() => expect(searches(calls).at(-1)!.body).toMatchObject({ mode: "bm25" }));
     expect(new URLSearchParams(window.location.search).get("mode")).toBe("bm25");
     expect(await screen.findByText(/Fixed method: no confidence check/)).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Other methods"), "tfidf");
+    await user.selectOptions(screen.getByLabelText("Method"), "tfidf");
     await waitFor(() => expect(searches(calls).at(-1)!.body).toMatchObject({ mode: "tfidf" }));
 
-    await user.click(screen.getByRole("button", { name: /Controller settings/ }));
+    await user.click(screen.getByRole("button", { name: /^Settings/ }));
     await user.click(screen.getByRole("switch", { name: /Query expansion in the ladder/ }));
     await waitFor(() => expect(searches(calls).at(-1)!.body).toMatchObject({ expansion: false }));
     expect(screen.getByRole("button", { name: /Reset to tuned defaults/ })).toBeEnabled();
@@ -106,7 +109,7 @@ describe("Search page", () => {
     const calls = mockApi();
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: /Controller settings/ }));
+    await user.click(await screen.findByRole("button", { name: /^Settings/ }));
     const cs = fixtures.collections.collections.find((c) => c.id === "cs")!;
     const voc = screen.getByRole("switch", { name: /Value-of-computation/ });
     if (cs.features.voc_policy) expect(voc).toBeEnabled();

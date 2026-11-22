@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Collection } from "../lib/api";
-import { placeLabels, plotted } from "../components/QualityCostChart";
+import { isAdaptive, placeLabels, plotted } from "../components/QualityCostChart";
 import { fixtures, mockApi } from "../test/mockApi";
 import { EvaluationPage } from "./EvaluationPage";
 
@@ -32,11 +33,33 @@ describe("Evaluation page", () => {
     expect(rows.find((x) => x.textContent?.includes("Full controller"))).toHaveAttribute("data-highlight", "true");
   });
 
-  it("reports significance, ablations and whether risk control held", async () => {
+  it("shows one detail table at a time: query types, significance, ablations and risk control", async () => {
     mockApi();
+    const user = userEvent.setup();
     render(<EvaluationPage collection={coll("scifact")} />);
-    expect(await screen.findByRole("region", { name: "Significance tests" })).toBeInTheDocument();
+    const views = await screen.findByRole("radiogroup", { name: "Detail view" });
+    expect(within(views).getAllByRole("radio").map((b) => b.textContent)).toEqual([
+      "All systems",
+      "By query type",
+      "Significance",
+      "Ablations",
+      "Risk control",
+    ]);
+    expect(screen.queryByRole("region", { name: "Significance tests" })).not.toBeInTheDocument();
+
+    await user.click(within(views).getByRole("radio", { name: "By query type" }));
+    const types = screen.getByRole("region", { name: "By query type" });
+    expect(within(types).getAllByRole("row").slice(1)).toHaveLength(4); // BM25, dense, hybrid, controller
+    expect(screen.queryByRole("region", { name: "All systems" })).not.toBeInTheDocument();
+
+    await user.click(within(views).getByRole("radio", { name: "Significance" }));
+    const sig = screen.getByRole("region", { name: "Significance tests" });
+    expect(within(sig).getAllByRole("row").slice(1)).toHaveLength(r.significance.filter((s) => s.b === "S5" && isAdaptive(s.a)).length);
+
+    await user.click(within(views).getByRole("radio", { name: "Ablations" }));
     expect(screen.getByRole("region", { name: "Ablations" })).toHaveTextContent("without expansion");
+
+    await user.click(within(views).getByRole("radio", { name: "Risk control" }));
     const risk = screen.getByRole("region", { name: "Risk control" });
     const certified = r.risk_curve.filter((x) => x.certified_on_val).length;
     expect(within(risk).getAllByText(/held|violated/)).toHaveLength(certified);
@@ -50,6 +73,8 @@ describe("Evaluation page", () => {
     const table = screen.getByRole("region", { name: "All systems" });
     expect(within(table).queryByText("NDCG@10")).not.toBeInTheDocument();
     expect(within(table).getByText("Mean cost")).toBeInTheDocument();
+    const views = screen.getByRole("radiogroup", { name: "Detail view" });
+    expect(within(views).getAllByRole("radio").map((b) => b.textContent)).toEqual(["All systems", "Ablations"]);
   });
 });
 

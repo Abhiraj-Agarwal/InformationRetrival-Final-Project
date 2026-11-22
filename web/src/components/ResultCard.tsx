@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { BookOpen, Check, ChevronDown, Minus, X } from "lucide-react";
+import { Check, ChevronDown, Minus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, type Passage, type Result } from "../lib/api";
@@ -196,7 +196,16 @@ export function ResultCard({ r, topScore, collection }: { r: Result; topScore: n
       <div className="grid grid-cols-[1.75rem_1fr] gap-x-3 sm:grid-cols-[2.25rem_1fr_7.5rem] sm:gap-x-4">
         <span className={clsx("num pt-px text-[1.05rem] font-semibold", r.rank <= 3 ? "text-ink" : "text-ink-faint")}>{r.rank}</span>
         <div className="min-w-0">
-          <h3 className="text-[1.02rem] font-semibold leading-snug tracking-[-0.005em]">{r.title}</h3>
+          <h3 className="text-[1.02rem] font-semibold leading-snug tracking-[-0.005em]">
+            <button
+              type="button"
+              onClick={() => setReading(true)}
+              title="Read the full passage"
+              className="text-left underline-offset-[3px] hover:text-accent-ink hover:underline"
+            >
+              {r.title}
+            </button>
+          </h3>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8rem] text-ink-faint">
             <Badge tone={k === "semantic" ? "semantic" : k === "expand" ? "expand" : k === "fused" ? "plain" : "accent"}>
               <MethodTag method={r.method} />
@@ -207,13 +216,12 @@ export function ResultCard({ r, topScore, collection }: { r: Result; topScore: n
             {r.snippet.hits > 0 && <span className="num">{r.snippet.hits} term hits</span>}
           </div>
         </div>
-        <div className="col-start-2 mt-2 flex items-center gap-2.5 sm:col-start-3 sm:row-start-1 sm:mt-0.5 sm:block">
+        <div className="col-start-2 mt-2 sm:col-start-3 sm:row-start-1 sm:mt-0.5" title={`${Math.round(rel * 100)}% of the top score`}>
           <div className="num text-[0.92rem] font-medium sm:text-right">{fmt(r.score, 3)}</div>
-          <Meter value={rel} tone={k === "semantic" ? "semantic" : "accent"} className="w-20 sm:ml-auto sm:mt-1.5 sm:w-full" label="score relative to the top result" />
         </div>
         <div className="col-start-2 min-w-0 sm:col-end-4">
           <Snippet r={r} />
-          <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[0.84rem] font-medium">
+          <div className="mt-2.5 text-[0.84rem] font-medium">
             <button
               type="button"
               onClick={() => setOpen((o) => !o)}
@@ -222,9 +230,6 @@ export function ResultCard({ r, topScore, collection }: { r: Result; topScore: n
             >
               <ChevronDown className={clsx("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
               Why this result?
-            </button>
-            <button type="button" onClick={() => setReading(true)} className="inline-flex items-center gap-1.5 text-ink-soft hover:text-ink">
-              <BookOpen className="h-3.5 w-3.5" /> Read full passage
             </button>
           </div>
           {open && <Why r={r} />}

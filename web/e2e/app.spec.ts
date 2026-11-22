@@ -75,17 +75,17 @@ test("switching collections searches the right index every time (regression)", a
 test("every method runs, and the full passage opens", async ({ page }) => {
   await page.goto("/?c=scifact");
   await search(page, "ALDH1 breast cancer prognosis");
-  for (const m of ["BM25", "Dense", "Fixed hybrid", "Adaptive"]) {
-    await page.getByRole("radio", { name: m, exact: true }).click();
+  for (const m of ["bm25", "dense", "hybrid", "auto"]) {
+    await page.getByLabel("Method").selectOption(m);
     await expect(page.locator("[aria-busy=true]")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Results" }).getByRole("listitem").first()).toBeVisible();
   }
   for (const m of ["tfidf", "boolean", "bm25_champion", "route"]) {
-    await page.getByLabel("Other methods").selectOption(m);
+    await page.getByLabel("Method").selectOption(m);
     await expect(page.locator("[aria-busy=true]")).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);
   }
-  await page.getByRole("button", { name: /Read full passage/ }).first().click();
+  await page.getByRole("region", { name: "Results" }).locator("h3 button").first().click();
   const dialog = page.getByRole("dialog", { name: "Full passage" });
   await expect(dialog.getByText(/Source:/)).toBeVisible();
   await page.keyboard.press("Escape");
@@ -95,7 +95,7 @@ test("every method runs, and the full passage opens", async ({ page }) => {
 test("controller settings change the run", async ({ page }) => {
   await page.goto("/?c=nfcorpus");
   await search(page, "Why Deep Fried Foods May Cause Cancer");
-  await page.getByRole("button", { name: /Controller settings/ }).click();
+  await page.getByRole("button", { name: /^Settings/ }).click();
   const tau = page.getByLabel("Confidence threshold");
   await tau.focus();
   for (let i = 0; i < 20; i++) await tau.press("ArrowLeft"); // τ = 0: always confident after the first step

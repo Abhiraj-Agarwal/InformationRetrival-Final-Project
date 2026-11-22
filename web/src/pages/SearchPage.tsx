@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DecisionPath, SpendLedger } from "../components/DecisionPath";
 import { QueryInsights, TermChips } from "../components/QueryInsights";
 import { ResultCard } from "../components/ResultCard";
-import { Badge, Callout, Chip, kindBg, MethodTag, Segmented, Skeleton, Stat, Toggle } from "../components/ui";
+import { Badge, Callout, Chip, kindBg, MethodTag, Skeleton, Stat, Toggle } from "../components/ui";
 import { api, type Collection, type FeatureFlag, type Mode, type SearchResponse } from "../lib/api";
 import { fmt, methodLabel, ms, parseRoute, stopSentence } from "../lib/format";
 
@@ -55,6 +55,7 @@ export function SearchPage({ collection }: { collection: Collection }) {
   const [mode, setMode] = useState<Mode>(init.mode);
   const [settings, setSettings] = useState<Settings>(() => defaultsFor(collection));
   const [showSettings, setShowSettings] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [resp, setResp] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -176,30 +177,22 @@ export function SearchPage({ collection }: { collection: Collection }) {
         </div>
       </form>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Segmented
-          label="Retrieval method"
-          size="sm"
-          value={PRIMARY.includes(mode) ? mode : ("other" as Mode)}
-          onChange={changeMode}
-          options={PRIMARY.map((m) => ({ value: m, label: methodLabel(m), title: MODE_HINT[m] }))}
-        />
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <label className="relative">
           <select
-            aria-label="Other methods"
-            value={OTHER.includes(mode) ? mode : ""}
-            onChange={(e) => e.target.value && changeMode(e.target.value as Mode)}
-            className={clsx(
-              "h-[2.05rem] cursor-pointer appearance-none rounded-ctl border pl-3 pr-8 text-[0.8rem] font-medium outline-none",
-              OTHER.includes(mode) ? "border-accent/40 bg-accent-soft text-accent-ink" : "border-line/[0.12] bg-surface text-ink-soft",
-            )}
+            aria-label="Method"
+            value={mode}
+            onChange={(e) => changeMode(e.target.value as Mode)}
+            className="h-[2.05rem] cursor-pointer appearance-none rounded-ctl border border-line/[0.12] bg-surface pl-3 pr-8 text-[0.84rem] font-medium text-ink outline-none focus:border-accent/60 focus:shadow-focus"
           >
-            <option value="">More methods</option>
-            {OTHER.map((m) => (
-              <option key={m} value={m}>
-                {methodLabel(m)}
-              </option>
-            ))}
+            <option value="auto">{methodLabel("auto")} (recommended)</option>
+            <optgroup label="Fixed methods">
+              {[...PRIMARY.slice(1), ...OTHER].map((m) => (
+                <option key={m} value={m}>
+                  {methodLabel(m)}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
         </label>
@@ -214,7 +207,7 @@ export function SearchPage({ collection }: { collection: Collection }) {
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          Controller settings
+          Settings
           {custom && <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-label="changed from defaults" />}
         </button>
       </div>
@@ -453,18 +446,40 @@ export function SearchPage({ collection }: { collection: Collection }) {
                 <div className="label mb-1">Budget spent per step</div>
                 <SpendLedger trace={resp.trace} tau={resp.tau} budget={resp.budget} mode={resp.mode} total={resp.total_cost} />
               </div>
-              <div className="border-b hairline px-5 py-4">
+              <div className="px-5 py-4">
                 <div className="label mb-2">Decision path</div>
                 <DecisionPath trace={resp.trace} tau={resp.tau} mode={resp.mode} />
-              </div>
-              <div className="px-5 py-4">
-                <div className="label mb-2">How the query was read</div>
-                <TermChips resp={resp} />
               </div>
             </aside>
           </div>
 
-          <QueryInsights resp={resp} />
+          <div className="mt-10 border-t hairline pt-6">
+            <button
+              type="button"
+              onClick={() => setShowAnalysis((v) => !v)}
+              aria-expanded={showAnalysis}
+              className="inline-flex items-center gap-1.5 text-[0.9rem] font-medium text-accent-ink hover:text-accent"
+            >
+              <ChevronDown className={clsx("h-4 w-4 transition-transform duration-200", showAnalysis && "rotate-180")} />
+              {showAnalysis ? "Hide the full analysis" : "Show the full analysis"}
+            </button>
+            {!showAnalysis && (
+              <p className="mt-1 text-[0.82rem] text-ink-faint">
+                How each query term was read, what every method ranked on its own, and why the controller was or was not confident.
+              </p>
+            )}
+            {showAnalysis && (
+              <div className="animate-reveal">
+                <section aria-label="How the query was read" className="mt-8">
+                  <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em]">How the query was read</h2>
+                  <div className="mt-3 max-w-xl">
+                    <TermChips resp={resp} />
+                  </div>
+                </section>
+                <QueryInsights resp={resp} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

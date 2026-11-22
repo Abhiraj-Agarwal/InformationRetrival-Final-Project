@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { Hammer, PartyPopper } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Callout, Meter, Skeleton } from "../components/ui";
+import { Callout, Meter, Skeleton } from "../components/ui";
 import { api, type Collection, type JudgeItem, type JudgeState } from "../lib/api";
 
 const GRADES = [
@@ -121,89 +121,80 @@ export function JudgePage({ collection }: { collection: Collection }) {
 
   const progress = state.total ? state.done / state.total : 0;
   const current = state.queries.find((q) => q.qid === item?.qid);
+  const field =
+    "h-9 rounded-ctl border border-line/[0.14] bg-surface px-3 text-[0.86rem] font-normal text-ink outline-none placeholder:text-ink-faint focus:border-accent/60 focus:shadow-focus";
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
-      <div className="min-w-0">
-        {!item ? (
-          <div className="panel flex items-center gap-4 p-6">
-            <PartyPopper className="h-6 w-6 flex-none text-pass" />
-            <div>
-              <b className="font-semibold">Everything {qid ? "for this query " : ""}is judged.</b>{" "}
-              <span className="text-ink-soft">
-                Run <code>python experiments/run_all.py cs --split test</code> to evaluate on the CS benchmark.
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 text-[0.82rem] text-ink-faint">
-                <span className="font-mono text-[0.78rem]">{item.qid}</span>
-                {item.type && <Badge tone="accent">{item.type}</Badge>}
-                {item.domain && <Badge>{item.domain}</Badge>}
-                <span className="num">
-                  passage {item.position} of {item.of}
-                </span>
-              </div>
-              <h2 className="mt-2 text-[clamp(1.3rem,2.4vw,1.65rem)] font-semibold leading-snug tracking-[-0.015em]">{item.query}</h2>
-            </div>
-            <article className="panel overflow-hidden">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b hairline px-6 py-3">
-                <h3 className="font-medium">{item.passage.title}</h3>
-                <span className="num text-[0.8rem] text-ink-faint">
-                  {item.passage.page ? `p. ${item.passage.page}, ` : ""}
-                  {item.passage.domain}
-                </span>
-              </div>
-              <p className="prose-passage max-w-[68ch] px-6 py-5">{item.passage.text}</p>
-            </article>
-            <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Grade">
-              {GRADES.map(({ g, label, hint }) => (
-                <button
-                  key={g}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => grade(g)}
-                  className={clsx(
-                    "rounded-ctl border px-4 py-3 text-left transition-colors duration-150 disabled:opacity-50",
-                    item.grade === g
-                      ? "border-accent/50 bg-accent-soft"
-                      : "border-line/[0.12] bg-surface hover:border-line/30",
-                  )}
-                >
-                  <span className="flex items-center gap-2.5 font-medium">
-                    <kbd>{g}</kbd>
-                    {label}
-                  </span>
-                  <span className="mt-1 block text-[0.8rem] text-ink-soft">{hint}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[0.8rem] text-ink-faint">
-              Press <kbd>0</kbd>, <kbd>1</kbd> or <kbd>2</kbd> to grade and move on. Guidelines are in <code>benchmark/judging_guidelines.md</code>.
-              {item.grade != null && <> The current grade is {item.grade}.</>}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <aside className="panel grid gap-5 p-5 lg:sticky lg:top-[4.25rem]" aria-label="Judging progress">
-        <div>
-          <div className="flex items-baseline justify-between text-[0.88rem]">
-            <span>
-              <b className="num font-semibold">{state.done.toLocaleString()}</b>{" "}
-              <span className="text-ink-faint">judged of {state.total.toLocaleString()}</span>
-            </span>
-            <span className="num text-ink-soft">{Math.round(progress * 100)}%</span>
-          </div>
-          <Meter value={progress} tone="pass" className="mt-2" label="judging progress" />
+    <div className="max-w-[52rem]">
+      <div aria-label="Judging progress" role="group">
+        <div className="flex items-baseline justify-between gap-3 text-[0.84rem] text-ink-soft">
+          <span>
+            <b className="num font-semibold text-ink">{state.done.toLocaleString()}</b> judged of {state.total.toLocaleString()}
+            <span className="num text-ink-faint"> · {Math.round(progress * 100)}%</span>
+          </span>
           {current && (
-            <p className="num mt-2 text-[0.8rem] text-ink-faint">
+            <span className="num text-ink-faint">
               This query: {current.judged} of {current.total}
-            </p>
+            </span>
           )}
         </div>
-        <label className="grid gap-1.5 text-[0.82rem] font-medium text-ink-soft">
+        <Meter value={progress} tone="pass" className="mt-2" label="judging progress" />
+      </div>
+
+      {!item ? (
+        <div className="panel mt-6 flex items-center gap-4 p-6">
+          <PartyPopper className="h-6 w-6 flex-none text-pass" />
+          <div>
+            <b className="font-semibold">Everything {qid ? "for this query " : ""}is judged.</b>{" "}
+            <span className="text-ink-soft">
+              Run <code>python experiments/run_all.py cs --split test</code> to evaluate on the CS benchmark.
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-7">
+          <p className="num text-[0.8rem] text-ink-faint">
+            {[item.qid, item.type, item.domain].filter(Boolean).join(" · ")} · passage {item.position} of {item.of}
+          </p>
+          <h2 className="mt-1.5 text-[clamp(1.3rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-[-0.015em]">{item.query}</h2>
+          <article className="panel mt-5 px-6 py-5">
+            <h3 className="text-[0.9rem] font-medium text-ink-soft">
+              {item.passage.title}
+              <span className="num font-normal text-ink-faint">
+                {" "}
+                · {item.passage.page ? `p. ${item.passage.page}, ` : ""}
+                {item.passage.domain}
+              </span>
+            </h3>
+            <p className="prose-passage mt-3 max-w-[68ch]">{item.passage.text}</p>
+          </article>
+          <div className="mt-5 grid gap-2 sm:grid-cols-3" role="group" aria-label="Grade">
+            {GRADES.map(({ g, label, hint }) => (
+              <button
+                key={g}
+                type="button"
+                disabled={busy}
+                onClick={() => grade(g)}
+                title={hint}
+                className={clsx(
+                  "flex items-center gap-2.5 rounded-ctl border px-4 py-2.5 text-left text-[0.9rem] font-medium transition-colors duration-150 disabled:opacity-50",
+                  item.grade === g ? "border-accent/50 bg-accent-soft" : "border-line/[0.12] bg-surface hover:border-line/30",
+                )}
+              >
+                <kbd>{g}</kbd>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2.5 text-[0.8rem] text-ink-faint">
+            0: does not help answer the query · 1: on topic, but incomplete or indirect · 2: directly answers it. Press the number
+            to grade and move on. Guidelines are in <code>benchmark/judging_guidelines.md</code>.
+            {item.grade != null && <> The current grade is {item.grade}.</>}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-8 grid gap-3 border-t hairline pt-5 sm:grid-cols-[14rem_1fr]">
+        <label className="grid gap-1.5 text-[0.8rem] text-ink-soft">
           Your name
           <input
             value={name}
@@ -215,11 +206,11 @@ export function JudgePage({ collection }: { collection: Collection }) {
                 /* private mode */
               }
             }}
-            placeholder="Used for inter-annotator agreement"
-            className="h-9 rounded-ctl border border-line/[0.14] bg-surface px-3 text-[0.88rem] font-normal text-ink outline-none placeholder:text-ink-faint focus:border-accent/60 focus:shadow-focus"
+            placeholder="For inter-annotator agreement"
+            className={field}
           />
         </label>
-        <label className="grid gap-1.5 text-[0.82rem] font-medium text-ink-soft">
+        <label className="grid min-w-0 gap-1.5 text-[0.8rem] text-ink-soft">
           Query
           <select
             value={qid}
@@ -227,7 +218,7 @@ export function JudgePage({ collection }: { collection: Collection }) {
               setQid(e.target.value);
               load(e.target.value);
             }}
-            className="h-9 w-full rounded-ctl border border-line/[0.14] bg-surface px-2.5 text-[0.88rem] font-normal text-ink outline-none focus:border-accent/60 focus:shadow-focus"
+            className={clsx(field, "w-full px-2.5")}
           >
             <option value="">Next unjudged, any query</option>
             {state.queries.map((q) => (
@@ -238,7 +229,7 @@ export function JudgePage({ collection }: { collection: Collection }) {
             ))}
           </select>
         </label>
-      </aside>
+      </div>
     </div>
   );
 }

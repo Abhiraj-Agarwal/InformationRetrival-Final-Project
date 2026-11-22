@@ -1,19 +1,31 @@
 import clsx from "clsx";
 import { CircleCheck, CircleX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { isAdaptive, QualityCostChart } from "../components/QualityCostChart";
-import { Badge, Callout, Meter, Panel, Segmented, Skeleton, Stat, TableWrap, td, tdNum, th, thNum } from "../components/ui";
+import { Callout, Segmented, Skeleton, Stat, TableWrap, td, tdNum, th, thNum } from "../components/ui";
 import { api, type Collection, type EvaluationResponse, type EvaluationResult, type SystemRow } from "../lib/api";
 import { fmt, ms, pct, relChange, signed } from "../lib/format";
 
 const METRICS = ["NDCG@10", "P@5", "Recall@10", "MAP"] as const;
 const nd = (s?: SystemRow) => s?.metrics?.["NDCG@10"] ?? null;
 
+type View = "systems" | "types" | "significance" | "ablations" | "risk";
+
+/** One detail table at a time, with a one-line explanation above it. */
+function Detail({ title, lead, children, note }: { title: string; lead: ReactNode; children: ReactNode; note?: ReactNode }) {
+  return (
+    <div data-view={title} className="mt-4">
+      <p className="max-w-[80ch] text-[0.86rem] leading-relaxed text-ink-soft">{lead}</p>
+      {children}
+      {note && <p className="mt-2 text-[0.8rem] text-ink-faint">{note}</p>}
+    </div>
+  );
+}
+
 function SystemsTable({ rows, labelled, highlight }: { rows: SystemRow[]; labelled: boolean; highlight: string }) {
-  const best = Math.max(...rows.map((r) => r.metrics?.["NDCG@10"] ?? 0), 1e-9);
   const bestOf = Object.fromEntries(METRICS.map((m) => [m, Math.max(...rows.map((r) => r.metrics?.[m] ?? -1))]));
   return (
-    <TableWrap label="All systems">
+    <TableWrap label="All systems" className="mt-3">
       <thead>
         <tr>
           <th className={th}>System</th>
@@ -29,26 +41,15 @@ function SystemsTable({ rows, labelled, highlight }: { rows: SystemRow[]; labell
           return (
             <tr key={r.id} data-highlight={on || undefined} className={clsx(on ? "bg-accent-soft/70" : "hover:bg-raised")}>
               <td className={clsx(td, "min-w-[15rem]")}>
-                <span className="inline-flex items-center gap-2.5">
-                  <span className={clsx("h-2 w-2 flex-none rounded-full", isAdaptive(r.id) ? "bg-accent" : "bg-ink-faint/60")} aria-hidden />
-                  <span className="num w-7 text-[0.8rem] text-ink-faint">{r.id}</span>
-                  <span className={clsx(on && "font-semibold")}>{r.label}</span>
-                </span>
+                <span className="num mr-2.5 inline-block w-7 text-[0.8rem] text-ink-faint">{r.id}</span>
+                <span className={clsx(on && "font-semibold", !isAdaptive(r.id) && !on && "text-ink-soft")}>{r.label}</span>
               </td>
               {labelled &&
                 METRICS.map((m) => {
                   const v = r.metrics?.[m];
-                  const top = v != null && v === bestOf[m];
                   return (
-                    <td key={m} className={clsx(tdNum, top && "font-semibold")}>
-                      {m === "NDCG@10" ? (
-                        <span className="inline-flex items-center justify-end gap-2.5">
-                          <Meter value={(v ?? 0) / best} tone={isAdaptive(r.id) ? "accent" : "mute"} className="w-14" label={`${r.id} NDCG@10`} />
-                          {fmt(v, 3)}
-                        </span>
-                      ) : (
-                        fmt(v, 3)
-                      )}
+                    <td key={m} className={clsx(tdNum, v != null && v === bestOf[m] && "font-semibold")}>
+                      {fmt(v, 3)}
                     </td>
                   );
                 })}
@@ -65,72 +66,46 @@ function SystemsTable({ rows, labelled, highlight }: { rows: SystemRow[]; labell
   );
 }
 
-/** NDCG@10 per query type for the key systems: shows where adaptivity pays off. */
-function ByType({ r }: { r: EvaluationResult }) {
-  const ids = ["S2", "S4", "S5", "S7"].filter((id) => r.systems.some((s) => s.id === id));
-  const sys = ids.map((id) => r.systems.find((s) => s.id === id)!);
+/** NDCG@10 and cost per query type for the key systems: where adaptivity pays off. */
+function byTypeData(r: EvaluationResult) {
+  const sys = ["S2", "S4", "S5", "S7"].map((id) => r.systems.find((s) => s.id === id)).filter((s): s is SystemRow => !!s);
   const types = Array.from(new Set(sys.flatMap((s) => Object.keys(s.by_type ?? {}))));
-  if (types.length < 2) return null;
-  const max = Math.max(...sys.flatMap((s) => types.map((t) => s.by_type?.[t]?.["NDCG@10"] ?? 0)), 1e-9);
-  return (
-    <Panel
-      title="By query type"
-      lead="The router sorts every query into a class. Fixed methods are strong on some classes and weak on others; the controller should track the best of them in each class while spending only what that class needs."
-    >
-      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {types.map((t) => {
-          const n = sys[0].by_type?.[t]?.n;
-          const vals = sys.map((s) => s.by_type?.[t]?.["NDCG@10"] ?? null);
-          const best = Math.max(...vals.map((v) => v ?? -1));
-          return (
-            <div key={t} className="panel p-4" aria-label={`${t} queries`}>
-              <div className="flex items-baseline justify-between">
-                <span className="font-medium capitalize">{t}</span>
-                {n != null && <span className="num text-[0.8rem] text-ink-faint">{n} queries</span>}
-              </div>
-              <ul className="mt-3 grid gap-2.5">
-                {sys.map((s, i) => {
-                  const b = s.by_type?.[t];
-                  const v = vals[i];
-                  return (
-                    <li key={s.id} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-3 text-[0.82rem]">
-                      <span className={clsx("truncate", isAdaptive(s.id) ? "font-medium text-ink" : "text-ink-soft")} title={s.label}>
-                        {s.label}
-                      </span>
-                      <Meter value={(v ?? 0) / max} tone={isAdaptive(s.id) ? "accent" : "mute"} label={`${s.label} on ${t}`} />
-                      <span className="num w-[6.5rem] whitespace-nowrap text-right">
-                        <span className={clsx(v === best && "font-semibold")}>{fmt(v, 3)}</span>
-                        <span className="text-ink-faint"> · {fmt(b?.mean_cost, 1)}u</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[0.8rem] text-ink-faint">Each row: NDCG@10, then mean cost in BM25 units.</p>
-    </Panel>
-  );
+  return { sys, types };
 }
 
-/** Mean difference with its 95% CI on a shared axis around zero. */
-function CiBar({ lo, hi, mean, span }: { lo: number; hi: number; mean: number; span: number }) {
-  const x = (v: number) => 50 + (v / span) * 50;
-  const sig = lo > 0 || hi < 0;
+function ByTypeTable({ r }: { r: EvaluationResult }) {
+  const { sys, types } = byTypeData(r);
   return (
-    <div className="relative h-5 w-40" aria-hidden>
-      <span className="absolute inset-y-0 left-1/2 w-px bg-ink/30" />
-      <span
-        className={clsx("absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full", sig ? "bg-fail/70" : "bg-pass/70")}
-        style={{ left: `${x(lo)}%`, width: `${Math.max(x(hi) - x(lo), 0.5)}%` }}
-      />
-      <span
-        className={clsx("absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface", sig ? "bg-fail" : "bg-pass")}
-        style={{ left: `${x(mean)}%` }}
-      />
-    </div>
+    <TableWrap label="By query type" className="mt-3">
+      <thead>
+        <tr>
+          <th className={th}>System</th>
+          {types.map((t) => (
+            <th key={t} className={thNum}>
+              <span className="capitalize">{t}</span>
+              <span className="ml-1 font-normal normal-case text-ink-faint">({sys[0].by_type?.[t]?.n ?? "?"} queries)</span>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {sys.map((s) => (
+          <tr key={s.id} data-highlight={s.id === "S7" || undefined} className={s.id === "S7" ? "bg-accent-soft/70" : "hover:bg-raised"}>
+            <td className={clsx(td, "min-w-[11rem]", s.id === "S7" && "font-semibold")}>{s.label}</td>
+            {types.map((t) => {
+              const v = s.by_type?.[t]?.["NDCG@10"] ?? null;
+              const best = Math.max(...sys.map((x) => x.by_type?.[t]?.["NDCG@10"] ?? -1));
+              return (
+                <td key={t} className={clsx(tdNum, "whitespace-nowrap")}>
+                  <span className={clsx(v === best && "font-semibold")}>{fmt(v, 3)}</span>
+                  <span className="text-ink-faint"> · {fmt(s.by_type?.[t]?.mean_cost, 1)}u</span>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </TableWrap>
   );
 }
 
@@ -138,6 +113,7 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
   const [split, setSplit] = useState<string | undefined>(undefined);
   const [data, setData] = useState<EvaluationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View>("systems");
 
   useEffect(() => {
     setData(null);
@@ -170,14 +146,19 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
   const ctl = sys.S7;
   const hyb = sys.S5;
   const bm25 = sys.S2;
+  const s8 = sys.S8;
   const certified = r.risk_curve.filter((x) => x.certified_on_val);
   const held = certified.filter((x) => x.test_failure_rate != null && x.test_failure_rate <= x.delta);
   const vsHybrid = r.significance.filter((s) => s.b === "S5" && isAdaptive(s.a));
-  const ciSpan = Math.max(...vsHybrid.flatMap((s) => [Math.abs(s.ci95[0]), Math.abs(s.ci95[1])]), 0.01) * 1.1;
-  const s8 = sys.S8;
-  const ablSpan = Math.max(...r.ablations.map((a) => Math.abs((nd(a) ?? 0) - (nd(s8) ?? 0))), 0.005);
   const keep = ctl && hyb && nd(hyb) ? (nd(ctl) ?? 0) / (nd(hyb) as number) : null;
   const saving = ctl && hyb ? relChange(hyb.mean_cost ?? 0, ctl.mean_cost ?? 0) : null;
+
+  const views: { value: View; label: string }[] = [{ value: "systems", label: "All systems" }];
+  if (r.labelled && byTypeData(r).types.length >= 2) views.push({ value: "types", label: "By query type" });
+  if (r.labelled && vsHybrid.length > 0) views.push({ value: "significance", label: "Significance" });
+  if (r.ablations.length > 0) views.push({ value: "ablations", label: "Ablations" });
+  if (r.labelled && r.risk_curve.length > 0) views.push({ value: "risk", label: "Risk control" });
+  const shown = views.some((v) => v.value === view) ? view : "systems";
 
   return (
     <div>
@@ -242,32 +223,46 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
         </>
       )}
 
-      {r.labelled && <ByType r={r} />}
+      <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em]">Details</h2>
+        <Segmented label="Detail view" size="sm" value={shown} onChange={setView} options={views} />
+      </div>
 
-      <Panel
-        title="Every system"
-        lead={
-          <>
-            S0 to S5 are fixed methods. S6 to S8 are the adaptive controller (routing only, full, full with expansion), and N1 to N4 add the
-            ContextWeave+ extensions. The cost unit is one BM25 query on the evaluation machine. The highlighted row is the full controller;
-            bold values are the best in their column.
-          </>
-        }
-      >
-        <SystemsTable rows={r.systems} labelled={r.labelled} highlight="S7" />
-      </Panel>
-
-      {r.labelled && vsHybrid.length > 0 && (
-        <Panel
-          title="Is the difference real?"
-          lead="Paired t-test against the fixed hybrid (S5) over the same queries, Holm-corrected. An interval that crosses zero means no significant loss: the controller matches the hybrid's quality at a fraction of its cost."
+      {shown === "systems" && (
+        <Detail
+          title="All systems"
+          lead={
+            <>
+              S0–S5 are fixed methods, S6–S8 the adaptive controller and N1–N4 the ContextWeave+ extensions. Cost is in BM25 queries. The
+              highlighted row is the full controller; bold is the best in its column.
+            </>
+          }
         >
-          <TableWrap label="Significance tests">
+          <SystemsTable rows={r.systems} labelled={r.labelled} highlight="S7" />
+        </Detail>
+      )}
+
+      {shown === "types" && (
+        <Detail
+          title="By query type"
+          lead="The router sorts queries into classes. Fixed methods win some classes and lose others; the controller should track the best in each while spending only what that class needs."
+          note="Each cell: NDCG@10 · mean cost in BM25 units. Bold is the best in its column."
+        >
+          <ByTypeTable r={r} />
+        </Detail>
+      )}
+
+      {shown === "significance" && (
+        <Detail
+          title="Is the difference real?"
+          lead="Paired t-test against the fixed hybrid (S5) on the same queries, Holm-corrected. An interval that crosses zero means no significant loss."
+        >
+          <TableWrap label="Significance tests" className="mt-3">
             <thead>
               <tr>
                 <th className={th}>System</th>
                 <th className={thNum}>Δ NDCG@10 vs S5</th>
-                <th className={th}>95% CI around zero</th>
+                <th className={thNum}>95% CI</th>
                 <th className={thNum}>p (Holm)</th>
                 <th className={th}>Verdict</th>
               </tr>
@@ -278,36 +273,33 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
                 return (
                   <tr key={s.a} className="hover:bg-raised">
                     <td className={clsx(td, "min-w-[14rem]")}>
-                      <span className="num mr-2 text-[0.8rem] text-ink-faint">{s.a}</span>
+                      <span className="num mr-2.5 inline-block w-7 text-[0.8rem] text-ink-faint">{s.a}</span>
                       {sys[s.a]?.label}
                     </td>
                     <td className={tdNum}>{signed(s.mean_diff)}</td>
-                    <td className={td}>
-                      <span className="flex items-center gap-3">
-                        <CiBar lo={s.ci95[0]} hi={s.ci95[1]} mean={s.mean_diff} span={ciSpan} />
-                        <span className="num whitespace-nowrap text-[0.8rem] text-ink-soft">
-                          [{fmt(s.ci95[0], 3)}, {fmt(s.ci95[1], 3)}]
-                        </span>
-                      </span>
+                    <td className={clsx(tdNum, "whitespace-nowrap text-ink-soft")}>
+                      [{fmt(s.ci95[0], 3)}, {fmt(s.ci95[1], 3)}]
                     </td>
                     <td className={tdNum}>{s.p_holm < 0.001 ? "< 0.001" : fmt(s.p_holm, 3)}</td>
-                    <td className={td}>{sig ? <Badge tone="fail">significant</Badge> : <Badge tone="pass">no significant loss</Badge>}</td>
+                    <td className={clsx(td, "text-[0.84rem] font-medium", sig ? "text-fail" : "text-pass")}>
+                      {sig ? "significant" : "no significant loss"}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </TableWrap>
-        </Panel>
+        </Detail>
       )}
 
-      {r.ablations.length > 0 && (
-        <Panel title="What each part contributes" lead="Ablations: the full controller (S8) with one component switched off at a time.">
-          <TableWrap label="Ablations">
+      {shown === "ablations" && (
+        <Detail title="What each part contributes" lead="Ablations: the full controller (S8) with one component switched off at a time.">
+          <TableWrap label="Ablations" className="mt-3">
             <thead>
               <tr>
                 <th className={th}>Variant</th>
                 {r.labelled && <th className={thNum}>NDCG@10</th>}
-                {r.labelled && <th className={th}>Δ vs S8</th>}
+                {r.labelled && <th className={thNum}>Δ vs S8</th>}
                 <th className={thNum}>Mean cost</th>
                 <th className={thNum}>Δ cost vs S8</th>
               </tr>
@@ -320,20 +312,7 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
                     <td className={clsx(td, "min-w-[13rem]")}>{a.label.replace("S8 - ", "without ")}</td>
                     {r.labelled && <td className={tdNum}>{fmt(nd(a), 3)}</td>}
                     {r.labelled && (
-                      <td className={td}>
-                        <span className="flex items-center gap-3">
-                          <span className="relative h-2 w-28 flex-none" aria-hidden>
-                            <span className="absolute inset-y-[-2px] left-1/2 w-px bg-ink/30" />
-                            {d != null && (
-                              <span
-                                className={clsx("absolute inset-y-0 rounded-[2px]", d < 0 ? "bg-fail/70" : "bg-pass/70")}
-                                style={d < 0 ? { right: "50%", width: `${(Math.abs(d) / ablSpan) * 50}%` } : { left: "50%", width: `${(d / ablSpan) * 50}%` }}
-                              />
-                            )}
-                          </span>
-                          <span className="num text-[0.84rem]">{d != null ? signed(d) : "—"}</span>
-                        </span>
-                      </td>
+                      <td className={clsx(tdNum, d != null && d < -0.005 && "text-fail")}>{d != null ? signed(d) : "—"}</td>
                     )}
                     <td className={tdNum}>{fmt(a.mean_cost)}</td>
                     <td className={tdNum}>{s8?.mean_cost ? pct(relChange(s8.mean_cost, a.mean_cost ?? 0)) : "—"}</td>
@@ -342,20 +321,20 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
               })}
             </tbody>
           </TableWrap>
-        </Panel>
+        </Detail>
       )}
 
-      {r.labelled && r.risk_curve.length > 0 && (
-        <Panel
+      {shown === "risk" && (
+        <Detail
           title="Risk-controlled stopping"
           lead="Learn-then-Test picks τ on validation queries so that, with 90% confidence, at most δ of queries lose more than 0.05 NDCG@10 against the fixed hybrid. The test split checks whether that promise held."
         >
-          <TableWrap label="Risk control">
+          <TableWrap label="Risk control" className="mt-3">
             <thead>
               <tr>
                 <th className={thNum}>Allowed failure rate δ</th>
                 <th className={thNum}>τ chosen</th>
-                <th className={th}>Test failure rate vs δ</th>
+                <th className={thNum}>Test failure rate</th>
                 <th className={thNum}>Test NDCG@10</th>
                 <th className={thNum}>Test cost</th>
                 <th className={th}>Guarantee</th>
@@ -364,23 +343,11 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
             <tbody>
               {r.risk_curve.map((x) => {
                 const ok = x.certified_on_val && x.test_failure_rate != null && x.test_failure_rate <= x.delta;
-                const scale = Math.max(x.delta, x.test_failure_rate ?? 0, 1e-9) * 1.25;
                 return (
                   <tr key={x.delta} className="hover:bg-raised">
                     <td className={tdNum}>{pct(x.delta)}</td>
                     <td className={tdNum}>{x.certified_on_val ? fmt(x.tau) : "—"}</td>
-                    <td className={td}>
-                      <span className="flex items-center gap-3">
-                        <Meter
-                          value={(x.test_failure_rate ?? 0) / scale}
-                          marker={x.delta / scale}
-                          tone={!x.certified_on_val ? "mute" : ok ? "pass" : "fail"}
-                          className="w-24 flex-none"
-                          label={`test failure rate at δ ${pct(x.delta)}`}
-                        />
-                        <span className="num text-[0.84rem]">{pct(x.test_failure_rate, 1)}</span>
-                      </span>
-                    </td>
+                    <td className={tdNum}>{pct(x.test_failure_rate, 1)}</td>
                     <td className={tdNum}>{fmt(x.test_ndcg, 3)}</td>
                     <td className={tdNum}>{fmt(x.test_cost, 1)}</td>
                     <td className={td}>
@@ -401,8 +368,7 @@ export function EvaluationPage({ collection }: { collection: Collection }) {
               })}
             </tbody>
           </TableWrap>
-          <p className="mt-2 text-[0.8rem] text-ink-faint">The tick on each bar marks δ; a bar that stays left of it means the guarantee held.</p>
-        </Panel>
+        </Detail>
       )}
     </div>
   );
