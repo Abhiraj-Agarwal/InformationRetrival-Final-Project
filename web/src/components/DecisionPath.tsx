@@ -37,6 +37,19 @@ export function buildPath(trace: TraceStep[], tau: number | null, mode: string):
 /* measured after each step plotted above it against τ. One look shows where the effort went and why it stopped.  */
 /* ------------------------------------------------------------------------------------------------------------ */
 
+/** Dot positions (percent of the plot width): each sits over the step that produced it, nudged apart so a cheap
+ *  step next to an expensive one never stacks two readings on top of each other. */
+export function spreadPositions(xs: number[], gap = 16, pad = 5): number[] {
+  const n = xs.length;
+  if (!n) return [];
+  const g = n > 1 ? Math.min(gap, (100 - 2 * pad) / (n - 1)) : 0;
+  const out = xs.map((v) => Math.min(Math.max(v, pad), 100 - pad));
+  for (let i = 1; i < n; i++) out[i] = Math.max(out[i], out[i - 1] + g);
+  out[n - 1] = Math.min(out[n - 1], 100 - pad);
+  for (let i = n - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - g);
+  return out;
+}
+
 export function SpendLedger({
   trace,
   tau,
@@ -53,57 +66,76 @@ export function SpendLedger({
   const adaptive = mode === "auto";
   const track = Math.max(adaptive && budget ? budget : 0, total, 1e-9);
   const segs: { method: string; start: number; cost: number }[] = [];
-  const checks: { at: number; value: number }[] = [];
+  const checks: { at: number; mid: number; value: number; method: string }[] = [];
   const skips: { method: string; need: number | null }[] = [];
   let spent = 0;
   for (const s of trace) {
     if (s.action === "retrieve") {
       segs.push({ method: s.method ?? "", start: spent, cost: s.cost });
       spent += s.cost;
-    } else if (s.action === "confidence" && s.confidence != null) checks.push({ at: spent, value: s.confidence });
-    else if (s.action === "escalate" && s.note.startsWith("skip")) {
+    } else if (s.action === "confidence" && s.confidence != null) {
+      const seg = segs[segs.length - 1];
+      checks.push({ at: spent, mid: seg ? seg.start + seg.cost / 2 : spent, value: s.confidence, method: seg?.method ?? "" });
+    } else if (s.action === "escalate" && s.note.startsWith("skip")) {
       const m = s.note.match(/needs ([\d.]+)/);
       skips.push({ method: s.method ?? "", need: m ? Number(m[1]) : null });
     }
   }
   const showConf = (adaptive || mode === "route") && checks.length > 0;
   const W = 100; // percentage space
-  const H = 56;
+  const H = 64;
   const x = (c: number) => (c / track) * W;
   // zoom the confidence axis to the values and τ, so small differences near the threshold stay visible
   const vals = [...checks.map((c) => c.value), ...(tau != null ? [tau] : [])];
   const lo = Math.max(0, Math.min(...vals, 1) - 0.08);
   const hi = Math.min(1, Math.max(...vals, 0) + 0.04);
-  const y = (v: number) => 6 + (1 - (v - lo) / Math.max(hi - lo, 1e-6)) * (H - 12);
-  const stepLine = checks.map((c, i) => `${i ? "L" : "M"}${x(c.at)},${y(c.value)}${checks[i + 1] ? ` L${x(checks[i + 1].at)},${y(c.value)}` : ""}`).join(" ");
+  const y = (v: number) => 18 + (1 - (v - lo) / Math.max(hi - lo, 1e-6)) * (H - 24);
+  const px = spreadPositions(checks.map((c) => x(c.mid)));
+  const stepLine = checks
+    .map((c, i) => `${i ? "L" : "M"}${px[i]},${y(c.value)}${checks[i + 1] ? ` L${px[i + 1]},${y(c.value)}` : ""}`)
+    .join(" ");
 
   return (
     <div aria-label="Budget ledger" role="group">
       {showConf && (
         <div className="relative" style={{ height: H }}>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
-            {tau != null && (
-              <line x1={0} x2={W} y1={y(tau)} y2={y(tau)} className="stroke-ink/45" strokeDasharray="1.2 1.2" vectorEffect="non-scaling-stroke" strokeWidth={1} />
-            )}
-            <path d={stepLine} fill="none" className="stroke-ink-faint" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
-          </svg>
-          {checks.map((c, i) => {
-            const ok = tau != null && c.value >= tau;
-            return (
-              <span
-                key={i}
-                title={`confidence ${fmt(c.value)} after ${fmt(c.at, 1)} units`}
-                className={clsx(
-                  "absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface",
-                  tau == null ? "bg-ink-faint" : ok ? "bg-pass" : "bg-fail",
-                )}
-                style={{ left: `${x(c.at)}%`, top: y(c.value) }}
-              />
-            );
-          })}
+          {/* plot area leaves a gutter on the right for the τ label, so no reading can sit on top of it */}
+          <div className="absolute inset-y-0 left-0 right-12">
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+              {tau != null && (
+                <line x1={0} x2={W} y1={y(tau)} y2={y(tau)} className="stroke-ink/45" strokeDasharray="1.2 1.2" vectorEffect="non-scaling-stroke" strokeWidth={1} />
+              )}
+              <path d={stepLine} fill="none" className="stroke-ink-faint" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+            </svg>
+            {checks.map((c, i) => {
+              const ok = tau != null && c.value >= tau;
+              return (
+                <span key={i}>
+                  <span
+                    title={`confidence ${fmt(c.value)} after ${methodLabel(c.method)} (${fmt(c.at, 1)} units spent)`}
+                    className={clsx(
+                      "absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface",
+                      tau == null ? "bg-ink-faint" : ok ? "bg-pass" : "bg-fail",
+                    )}
+                    style={{ left: `${px[i]}%`, top: y(c.value) }}
+                  />
+                  <span
+                    className={clsx(
+                      "num absolute -translate-x-1/2 text-[0.68rem] font-medium leading-none",
+                      tau == null ? "text-ink-faint" : ok ? "text-pass" : "text-fail",
+                    )}
+                    style={{ left: `${px[i]}%`, top: y(c.value) - 15 }}
+                    aria-hidden
+                  >
+                    {fmt(c.value)}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
           {tau != null && (
             <span
-              className="num absolute right-0 -translate-y-full pb-0.5 text-[0.72rem] font-medium text-ink-soft"
+              className="num absolute right-0 -translate-y-1/2 text-[0.72rem] font-medium text-ink-soft"
               style={{ top: y(tau) }}
             >
               τ {fmt(tau)}
