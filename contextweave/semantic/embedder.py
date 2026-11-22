@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional, Sequence
 
 import numpy as np
@@ -9,6 +10,7 @@ import numpy as np
 from contextweave.core.types import Query
 
 log = logging.getLogger(__name__)
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")  # transformers colours the report when stdout is a terminal
 
 
 class _BenignLoadReportFilter(logging.Filter):
@@ -17,11 +19,12 @@ class _BenignLoadReportFilter(logging.Filter):
     Checkpoints saved by older transformers (all-MiniLM-L6-v2 included) store BERT's ``position_ids`` buffer;
     transformers >= 5 makes it non-persistent and rebuilds it as ``arange(max_positions)``, so the stored copy is
     reported as unexpected. Both are identical (0..511) and no weight is lost. Any other finding (MISSING,
-    MISMATCH, other UNEXPECTED keys) still gets through.
+    MISMATCH, other UNEXPECTED keys) still gets through. Colour codes are stripped first: in a terminal the
+    report reads "\x1b[...mUNEXPECTED\x1b[0m", not "UNEXPECTED".
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        msg = record.getMessage()
+        msg = _ANSI.sub("", record.getMessage())
         if "LOAD REPORT" not in msg:
             return True
         rows = [line.split("|") for line in msg.splitlines() if line.count("|") >= 2]

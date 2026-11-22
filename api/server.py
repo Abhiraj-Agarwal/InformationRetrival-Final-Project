@@ -142,11 +142,26 @@ def create_app(loader: Callable[[str], object] = default_loader, cfg=None, warm:
     def built() -> list[str]:
         return [c for c in COLLECTIONS if ready(c)]
 
+    def warm_all(names: list[str]) -> None:
+        """Load every built collection (indexes + embedding model) in the background, one after another, so
+        no search has to wait for it. A search on a collection still loading simply waits for that one."""
+        import time
+
+        for c in names:
+            t = time.perf_counter()
+            try:
+                systems.get(c)
+                print(f"ContextWeave: {c} ready ({time.perf_counter() - t:.1f}s)", flush=True)
+            except Exception as e:  # keep serving; the search endpoint will report the error for this collection
+                print(f"ContextWeave: could not load {c}: {e}", flush=True)
+        print("ContextWeave: all collections loaded, searches are now instant", flush=True)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        b = built()  # load the first built collection in the background so the first search is fast
+        b = built()
         if warm and b:
-            threading.Thread(target=systems.get, args=(b[0],), daemon=True).start()
+            print(f"ContextWeave: loading {', '.join(b)} in the background (about 15 s on first start)", flush=True)
+            threading.Thread(target=warm_all, args=(b,), daemon=True).start()
         yield
 
     app = FastAPI(title="ContextWeave", version="2.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None,

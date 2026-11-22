@@ -72,3 +72,15 @@ def test_benign_position_ids_load_report_is_silenced_but_real_problems_are_not()
     assert f.filter(_report([("embeddings.position_ids", "UNEXPECTED"), ("pooler.dense.weight", "MISSING")]))
     assert f.filter(_report([("classifier.weight", "UNEXPECTED")]))
     assert f.filter(logging.LogRecord("x", logging.WARNING, "", 0, "some other warning", None, None))
+
+
+def test_load_report_filter_handles_terminal_colours():
+    """In a terminal transformers wraps names and statuses in ANSI colour codes (python main.py serve)."""
+    from contextweave.semantic.embedder import _BenignLoadReportFilter
+
+    f = _BenignLoadReportFilter()
+    orange, bold, reset = "\x1b[38;5;208m", "\x1b[1m", "\x1b[0m"
+    rec = _report([("embeddings.position_ids", f"{orange}UNEXPECTED{reset}")])
+    rec.msg = rec.msg.replace("BertModel LOAD REPORT", f"{bold}BertModel LOAD REPORT{reset}")
+    assert not f.filter(rec)
+    assert f.filter(_report([("pooler.dense.weight", f"\x1b[31mMISSING{reset}")]))
